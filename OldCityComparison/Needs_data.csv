@@ -1,0 +1,16 @@
+age range,Occupation,Retailing services,Education services,Religious organizations
+0-18,Student,4,20,1
+0-18,Service,8,20,1
+0-18,Driver,0,0,0
+0-18,Education,0,0,0
+0-18,Unemployed,0,0,0
+18-65,Student,6,18,5
+18-65,Service,12,4,5
+18-65,Driver,12,1,3
+18-65,Education,12,18,5
+18-65,Unemployed,12,4,5
+65-100,Student,0,0,0
+65-100,Service,9,1,11
+65-100,Driver,0,0,0
+65-100,Education,0,0,0
+65-100,Unemployed,9,0,11
