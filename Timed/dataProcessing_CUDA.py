@@ -2,6 +2,7 @@ import pandas as pd
 import torch
 import json
 import numpy as np
+import os
 from collections import namedtuple
 
 class Config:
@@ -124,13 +125,13 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
 
     trainBundle=DataBundle(cityTrain,monthsTrain)
     for i in range(len(monthsTrain)):
-        visits = pd.read_csv('..\\TimedData\\' + cityTrain +'\\FullSimple_'+dates[monthsTrain[i]]+'.csv', header=None)
-        pOIShops = pd.read_csv('..\\TimedData\\' + cityTrain +'\\shopLocVis_'+dates[monthsTrain[i]]+'.csv', header=None)
-        pOISchools = pd.read_csv('..\\TimedData\\' + cityTrain + '\\schoolLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
-        pOIReligion = pd.read_csv('..\\TimedData\\' + cityTrain + '\\religionLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
+        visits = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTrain +os.sep+'FullSimple_'+dates[monthsTrain[i]]+'.csv', header=None)
+        pOIShops = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTrain +os.sep+'shopLocVis_'+dates[monthsTrain[i]]+'.csv', header=None)
+        pOISchools = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTrain + os.sep+'schoolLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
+        pOIReligion = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTrain + os.sep+'religionLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
 
-        population = pd.read_csv('..\\FixedData\\' + cityTrain + '_population.csv', header=None)
-        needs = pd.read_csv('..\\FixedData\\Needs_data_numbers.csv', header=None)
+        population = pd.read_csv('..'+os.sep+'FixedData'+os.sep + cityTrain + '_population.csv', header=None)
+        needs = pd.read_csv('..'+os.sep+'FixedData'+os.sep+'Needs_data_numbers.csv', header=None)
 
         isFirst = True
 
@@ -153,13 +154,13 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
 
     testBundle = DataBundle(cityTest, monthsTest)
     for i in range(len(monthsTrain)):
-        visits = pd.read_csv('..\\TimedData\\' + cityTest + '\\FullSimple_' + dates[monthsTest[i]] + '.csv', header=None)
-        pOIShops = pd.read_csv('..\\TimedData\\' + cityTest + '\\shopLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
-        pOISchools = pd.read_csv('..\\TimedData\\' + cityTest + '\\schoolLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
-        pOIReligion = pd.read_csv('..\\TimedData\\' + cityTest + '\\religionLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
+        visits = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'FullSimple_' + dates[monthsTest[i]] + '.csv', header=None)
+        pOIShops = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'shopLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
+        pOISchools = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'schoolLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
+        pOIReligion = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'religionLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
 
-        population = pd.read_csv('..\\FixedData\\' + cityTest + '_population.csv', header=None)
-        needs = pd.read_csv('..\\FixedData\\Needs_data_numbers.csv', header=None)
+        population = pd.read_csv('..'+os.sep+'FixedData'+os.sep + cityTest + '_population.csv', header=None)
+        needs = pd.read_csv('..'+os.sep+'FixedData'+os.sep+'Needs_data_numbers.csv', header=None)
 
         isFirst = True
 

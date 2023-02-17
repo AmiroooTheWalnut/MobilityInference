@@ -64,12 +64,12 @@ def guide(data):
 
     # register prior parameter value. It'll be updated in the guide function
     # with pyro.plate("G", data.G) as g:
-    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
-    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
-    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
-    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
-    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
-    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
+    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
+    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
+    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
@@ -223,7 +223,7 @@ print("Final evalulation")
 # allDataTrain = loadData(cities[selectedTrainCityIndex], dates, times[selectedTrainRangeIndices])
 allData.trainData.monthlyData[0].isFirst=True
 loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
-logging.info("final loss train SantaFe = {}".format(loss))
+logging.info("final loss train Tucson = {}".format(loss))
 
 for name in pyro.get_param_store():
     value = pyro.param(name)
@@ -237,8 +237,11 @@ for name in pyro.get_param_store():
 # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
 # allData = AllData(data)
 #
-loss = elbo.loss(model, guide, allData.testData.monthlyData[0])
-logging.info("final loss test Appleton = {}".format(loss))
+
+for i in range(len(allData.testData.monthlyData)):
+    loss = elbo.loss(model, guide, allData.testData.monthlyData[i])
+    logging.info("final loss test Appleton = {}".format(loss))
+
 #
 # visits = pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
 # population = 107400

@@ -11,12 +11,12 @@ digraph {
 		Tu_Religion [label=Tu_Religion fillcolor=white shape=ellipse style=filled]
 	}
 	age -> occupation
-	age -> Tu_Shop
 	occupation -> Tu_Shop
-	age -> Tu_School
+	age -> Tu_Shop
 	occupation -> Tu_School
-	age -> Tu_Religion
+	age -> Tu_School
 	occupation -> Tu_Religion
+	age -> Tu_Religion
 	Tu_Shop -> S_Shop
 	Tu_School -> S_School
 	Tu_Religion -> S_Religion
