@@ -259,7 +259,7 @@ for i=3:size(projects,1)
                 end
                 parts=split(files(j,1).name,'_');
                 subParts=split(parts{size(parts,1),1},'.');
-                calcSaveFinalProbability(rawProbabilities,ranges,sSch,ISch,strcat('sourceCBG_schoolCBG_probability',parts{size(parts,1)-1,1},'_',subParts{1,1},'.csv'));
+                calcSaveFinalProbability(rawProbabilities,ranges,sSch,ISch,strcat('sourceCBG_schoolCBG_probability_',parts{size(parts,1)-1,1},'_',subParts{1,1},'.csv'));
             elseif contains(files(j,1).name,'CBGReligionDists')
                 religionDists = readmatrix(files(j,1).name);
                 [sRel,IRel]=sort(religionDists,2);
@@ -274,7 +274,7 @@ for i=3:size(projects,1)
                 end
                 parts=split(files(j,1).name,'_');
                 subParts=split(parts{size(parts,1),1},'.');
-                calcSaveFinalProbability(rawProbabilities,ranges,sRel,IRel,strcat('sourceCBG_religionCBG_probability',parts{size(parts,1)-1,1},'_',subParts{1,1},'.csv'));
+                calcSaveFinalProbability(rawProbabilities,ranges,sRel,IRel,strcat('sourceCBG_religionCBG_probability_',parts{size(parts,1)-1,1},'_',subParts{1,1},'.csv'));
             end
         end
         cd(mainFolder);
