@@ -18,23 +18,23 @@ from pyro.optim import ExponentialLR
 from pyro.optim import Rprop
 from pyro.optim import AdamW
 from pyro.optim import Adadelta
-from dataProcessing import *
+from dataProcessing_CUDA import *
 
 def model(data):
-    with pyro.plate("G", data.G) as g:
-        alpha_paramShop = torch.ones(data.G)
-        alpha_paramSchool = torch.ones(data.G)
-        alpha_paramReligion = torch.ones(data.G)
-        beta_paramShop = torch.ones(data.G)
-        beta_paramSchool = torch.ones(data.G)
-        beta_paramReligion = torch.ones(data.G)
+    # with pyro.plate("G", data.G) as g:
+    #     alpha_paramShop = torch.ones(data.G)
+    #     alpha_paramSchool = torch.ones(data.G)
+    #     alpha_paramReligion = torch.ones(data.G)
+    #     beta_paramShop = torch.ones(data.G)
+    #     beta_paramSchool = torch.ones(data.G)
+    #     beta_paramReligion = torch.ones(data.G)
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-        shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
-        schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
-        religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+        shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+        schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+        religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
 
     shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(torch.abs(shopVisits.sum(-1, True))).to_event(1), obs=data.pOIs[0, 1])
     schoolVisitsObs = pyro.sample("S_School", dist.Poisson(torch.abs(schoolVisits.sum(-1, True))).to_event(1), obs=data.pOIs[1, 1])
@@ -63,21 +63,20 @@ def guide(data):
     # maxParam = 10
 
     # register prior parameter value. It'll be updated in the guide function
-    with pyro.plate("G", data.G) as g:
-        alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive)
-        beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive)
-        alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive)
-        beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive)
-        alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive)
-        beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive)
+    # with pyro.plate("G", data.G) as g:
+    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
+    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
+    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.5), constraint=constraints.positive).cuda()
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 6), constraint=constraints.positive).cuda()
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-        pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
-        pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
-        pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
-
+        pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+        pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+        pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
 
 #def makeTestConfig(test):
 #    jsonStr = json.dumps(test.__dict__)
@@ -147,6 +146,8 @@ else:
 
 
 allData = loadData(cities[selectedTrainCityIndex],cities[selectedTestCityIndex], dates, selectedTrainRangeIndices,selectedTestRangeIndices)
+
+# DataBundle.loadDataToGPU(allData.trainData.monthlyData[0])
 
 graph = pyro.render_model(model, model_args=(allData.trainData.monthlyData[0],), render_distributions=True, render_params=True)
 graph.view()
@@ -227,6 +228,9 @@ logging.info("final loss train SantaFe = {}".format(loss))
 for name in pyro.get_param_store():
     value = pyro.param(name)
     print("{} = {}".format(name, value.detach().cpu().numpy()))
+
+# DataBundle.unloadDataToGPU(allData.trainData.monthlyData[0])
+# DataBundle.loadDataToGPU(allData.testData.monthlyData[0])
 
 # visits = pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
 # population = 75000
