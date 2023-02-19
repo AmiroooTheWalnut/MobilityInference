@@ -3,6 +3,7 @@
 # This model only investigate the general type of visits and there is no POI involved.
 
 import os
+import sys
 import torch.distributions.constraints as constraints
 import pyro
 import pyro.distributions as dist
@@ -19,6 +20,10 @@ from pyro.optim import Rprop
 from pyro.optim import AdamW
 from pyro.optim import Adadelta
 from dataProcessing_CUDA import *
+from kFoldCrossVal import *
+
+globalError = []
+globalError.append(sys.float_info.max)
 
 def model(data):
     # with pyro.plate("G", data.G) as g:
@@ -45,7 +50,8 @@ def model(data):
     # for i in range(data.NE):
     #     obs[i] = obsRaw.iloc[i]
     #     obs[i] = torch.div(obs[i],100)
-    print(shopVisits.sum(-1, True) - data.pOIShops.sum() + schoolVisits.sum(-1, True) - data.pOISchools.sum() + religionVisits.sum(-1, True) - data.pOIReligion.sum())
+    globalError[0] = shopVisits.sum(-1, True) - data.pOIShops.sum() + schoolVisits.sum(-1, True) - data.pOISchools.sum() + religionVisits.sum(-1, True) - data.pOIReligion.sum()
+    print("within errors {}".format(globalError[0]))
 
     if data.isFirst == True:
         # obsRaw = np.transpose(data.pOIs.iloc[:][1])
@@ -53,7 +59,7 @@ def model(data):
         # for i in range(data.NE):
         #     obs[i] = obsRaw.iloc[i]
         #     obs[i] = torch.div(obs[i], 100)
-        print(shopVisits.sum(-1, True) - data.pOIShops.sum() + schoolVisits.sum(-1, True) - data.pOISchools.sum() + religionVisits.sum(-1, True) - data.pOIReligion.sum())
+        print("within errors {}".format(globalError[0]))
         data.isFirst = False
 
     return shopVisitsObs, schoolVisitsObs, religionVisitsObs
@@ -65,11 +71,11 @@ def guide(data):
     # register prior parameter value. It'll be updated in the guide function
     # with pyro.plate("G", data.G) as g:
     data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
     data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
     data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 8), constraint=constraints.positive).cuda()
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
@@ -82,7 +88,7 @@ def guide(data):
 #    jsonStr = json.dumps(test.__dict__)
 #    print(jsonStr)
 
-# testConfig= Config(0,0,[0],[1])
+# testConfig= Config(0,0,[0],[1],1)
 # file = open("tucson_test1.conf", "w")
 # file.write(testConfig.toJSON())
 # file.close()
@@ -91,33 +97,33 @@ pyro.clear_param_store()
 
 logging.basicConfig(format="%(relativeCreated) 9d %(message)s", level=logging.INFO)
 
-isReadConfigFile=True # IF FALSE, MANUAL SELECTION IS ON
+isReadConfigFile = True # IF FALSE, MANUAL SELECTION IS ON
+isKFoldCrossVal = True
 configFileName='tucson_test1.conf'
 # I'LL ADD CONFIGURATION FILES TO AVOID RAPIDLY INPUTTING CITY AND MONTH
-if isReadConfigFile==True:
-
+if isReadConfigFile == True:
     file = open('tucson_test1.conf', 'r')
 
     configStr=file.read()
     retConfig = json.loads(configStr, object_hook=customConfigDecoder)
 
-cities = os.listdir('..\\TimedData')
+cities = os.listdir('..'+os.sep+'TimedData')
 
 for i in range(len(cities)):
     print("[{}] {}".format(i + 1, cities[i]))
 
-if isReadConfigFile==False:
+if isReadConfigFile == False:
     selectedTrainCity = input("Select train city")
     selectedTrainCityIndex = int(selectedTrainCity) - 1
     selectedTestCity = input("Select test city")
     selectedTestCityIndex = int(selectedTestCity) - 1
 else:
-    selectedTrainCityIndex=retConfig.trainCityIndex
+    selectedTrainCityIndex = retConfig.trainCityIndex
     print("City [{}] selected".format(selectedTrainCityIndex))
     selectedTestCityIndex = retConfig.testCityIndex
     print("City [{}] selected".format(selectedTestCityIndex))
 
-times = os.listdir('..\\TimedData\\' + cities[selectedTrainCityIndex])
+times = os.listdir('..'+os.sep+'TimedData'+os.sep + cities[selectedTrainCityIndex])
 dates = set()
 for i in range(len(times)):
     noExtension = times[i].split(".")
@@ -203,66 +209,73 @@ svi = SVI(model, guide, optimizer, loss=elbo)
 
 # svi.num_chains=1
 
-loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
-logging.info("first loss train SantaFe = {}".format(loss))
+if retConfig.isKFoldCrossVal == 1:
+    runCrossVal(svi,elbo,model,guide,allData.testData.monthlyData,globalError,dates,cities[selectedTestCityIndex])
+else:
+    loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
+    logging.info("first loss train SantaFe = {}".format(loss))
 
-n_steps = 10000
+    n_steps = 1000
+    error_tolerance = 10
 
-# do gradient steps
-for step in range(n_steps):
-    loss = svi.step(allData.trainData.monthlyData[0])
-    if step % 10 == 0:
-        logging.info("{: >5d}\t{}".format(step, loss))
-        # print('.', end='')
-        # for name in pyro.get_param_store():
-        #     value = pyro.param(name)
-        #     print("{} = {}".format(name, value.detach().cpu().numpy()))
-print("Final evalulation")
+    # do gradient steps
+    for step in range(n_steps):
+        loss = svi.step(allData.trainData.monthlyData[0])
+        if step % 10 == 0:
+            logging.info("{: >5d}\t{}".format(step, loss))
+            # print('.', end='')
+            # for name in pyro.get_param_store():
+            #     value = pyro.param(name)
+            #     print("{} = {}".format(name, value.detach().cpu().numpy()))
+        if globalError[0] <= error_tolerance:
+            break
+    print("Final evalulation")
+
+    # allDataTrain = loadData(cities[selectedTrainCityIndex], dates, times[selectedTrainRangeIndices])
+    allData.trainData.monthlyData[0].isFirst = True
+    loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
+    logging.info("final loss train Tucson = {}".format(loss))
+
+    for name in pyro.get_param_store():
+        value = pyro.param(name)
+        print("{} = {}".format(name, value.detach().cpu().numpy()))
+
+    # DataBundle.unloadDataToGPU(allData.trainData.monthlyData[0])
+    # DataBundle.loadDataToGPU(allData.testData.monthlyData[0])
+
+    # visits = pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
+    # population = 75000
+    # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+    # allData = AllData(data)
+    #
+
+    for i in range(len(allData.testData.monthlyData)):
+        loss = elbo.loss(model, guide, allData.testData.monthlyData[i])
+        logging.info("final loss test Appleton = {}".format(loss))
+
+    #
+    # visits = pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
+    # population = 107400
+    # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+    # allData = AllData(data)
+    #
+    # loss = elbo.loss(model, guide, allData)
+    # logging.info("final loss test Green bay = {}".format(loss))
+    #
+    # visits = pd.read_csv('USA_NY_Richmond County_New York_FullSimple.csv', header=None)
+    # population = 8468000
+    # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+    # allData = AllData(data)
+    #
+    # loss = elbo.loss(model, guide, allData)
+    # logging.info("final loss test New york city = {}".format(loss))
+    #
+    # visits = pd.read_csv('USA_WA_King County_Seattle_FullSimple.csv', header=None)
+    # population = 760000
+    # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+    # allData = AllData(data)
+    #
+    # loss = elbo.loss(model, guide, allData)
+    # logging.info("final loss test Seattle = {}".format(loss))
 
 
-# allDataTrain = loadData(cities[selectedTrainCityIndex], dates, times[selectedTrainRangeIndices])
-allData.trainData.monthlyData[0].isFirst=True
-loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
-logging.info("final loss train Tucson = {}".format(loss))
-
-for name in pyro.get_param_store():
-    value = pyro.param(name)
-    print("{} = {}".format(name, value.detach().cpu().numpy()))
-
-# DataBundle.unloadDataToGPU(allData.trainData.monthlyData[0])
-# DataBundle.loadDataToGPU(allData.testData.monthlyData[0])
-
-# visits = pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
-# population = 75000
-# data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-# allData = AllData(data)
-#
-
-for i in range(len(allData.testData.monthlyData)):
-    loss = elbo.loss(model, guide, allData.testData.monthlyData[i])
-    logging.info("final loss test Appleton = {}".format(loss))
-
-#
-# visits = pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
-# population = 107400
-# data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-# allData = AllData(data)
-#
-# loss = elbo.loss(model, guide, allData)
-# logging.info("final loss test Green bay = {}".format(loss))
-#
-# visits = pd.read_csv('USA_NY_Richmond County_New York_FullSimple.csv', header=None)
-# population = 8468000
-# data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-# allData = AllData(data)
-#
-# loss = elbo.loss(model, guide, allData)
-# logging.info("final loss test New york city = {}".format(loss))
-#
-# visits = pd.read_csv('USA_WA_King County_Seattle_FullSimple.csv', header=None)
-# population = 760000
-# data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-# allData = AllData(data)
-#
-# loss = elbo.loss(model, guide, allData)
-# logging.info("final loss test Seattle = {}".format(loss))

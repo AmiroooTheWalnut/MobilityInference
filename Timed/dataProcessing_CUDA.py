@@ -6,11 +6,12 @@ import os
 from collections import namedtuple
 
 class Config:
-    def __init__(self, trainCityIndex,testCityIndex,trainTimeRange,testTimeRange):
+    def __init__(self, trainCityIndex,testCityIndex,trainTimeRange,testTimeRange,isKFoldCrossVal):
         self.trainCityIndex=trainCityIndex
         self.testCityIndex=testCityIndex
         self.trainTimeRange=trainTimeRange
         self.testTimeRange=testTimeRange
+        self.isKFoldCrossVal=isKFoldCrossVal
 
     def toJSON(self):
         return json.dumps(self, default=lambda o: o.__dict__,
@@ -153,7 +154,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         trainBundle.monthlyData.append(monthData)
 
     testBundle = DataBundle(cityTest, monthsTest)
-    for i in range(len(monthsTrain)):
+    for i in range(len(monthsTest)):
         visits = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'FullSimple_' + dates[monthsTest[i]] + '.csv', header=None)
         pOIShops = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'shopLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
         pOISchools = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'schoolLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
