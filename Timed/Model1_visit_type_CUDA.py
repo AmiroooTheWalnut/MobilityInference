@@ -4,6 +4,8 @@
 
 import os
 import sys
+from datetime import datetime
+import matplotlib.pyplot as plt
 import torch.distributions.constraints as constraints
 import pyro
 import pyro.distributions as dist
@@ -22,8 +24,9 @@ from pyro.optim import Adadelta
 from dataProcessing_CUDA import *
 from kFoldCrossVal import *
 
-globalError = []
-globalError.append(sys.float_info.max)
+globalError = np.zeros(1, dtype=np.int32)
+
+
 
 def model(data):
     # with pyro.plate("G", data.G) as g:
@@ -50,8 +53,12 @@ def model(data):
     # for i in range(data.NE):
     #     obs[i] = obsRaw.iloc[i]
     #     obs[i] = torch.div(obs[i],100)
-    globalError[0] = shopVisits.sum(-1, True) - data.pOIShops.sum() + schoolVisits.sum(-1, True) - data.pOISchools.sum() + religionVisits.sum(-1, True) - data.pOIReligion.sum()
-    print("within errors {}".format(globalError[0]))
+    for i in range(globalError.shape[0]):
+        if globalError[i]==0:
+            globalError[i] = shopVisits.sum(-1, True) - data.pOIShops.sum() + schoolVisits.sum(-1, True) - data.pOISchools.sum() + religionVisits.sum(-1, True) - data.pOIReligion.sum()
+            print("within errors {}".format(globalError[i]))
+            break
+
 
     if data.isFirst == True:
         # obsRaw = np.transpose(data.pOIs.iloc[:][1])
@@ -153,10 +160,10 @@ else:
 
 allData = loadData(cities[selectedTrainCityIndex],cities[selectedTestCityIndex], dates, selectedTrainRangeIndices,selectedTestRangeIndices)
 
-# DataBundle.loadDataToGPU(allData.trainData.monthlyData[0])
+#graph = pyro.render_model(model, model_args=(allData.trainData.monthlyData[0],), render_distributions=True, render_params=True)
+#graph.view()
 
-graph = pyro.render_model(model, model_args=(allData.trainData.monthlyData[0],), render_distributions=True, render_params=True)
-graph.view()
+numParticles=2
 
 # setup the optimizer
 adam_params = {"lr": 0.01, "betas": (0.9, 0.999), "maximize": False}
@@ -195,7 +202,8 @@ optimizer = Adam(adam_params)
 # elbo = Elbo(num_particles=5)
 
 Elbo = RenyiELBO
-elbo = Elbo(alpha=0.1, num_particles=5)
+elbo = Elbo(alpha=0.1, num_particles=numParticles)
+globalError=np.zeros(numParticles, dtype=np.int32)
 
 # Elbo = TraceMeanField_ELBO
 # elbo = Elbo(num_particles=5)
@@ -209,26 +217,53 @@ svi = SVI(model, guide, optimizer, loss=elbo)
 
 # svi.num_chains=1
 
+now = datetime.now()
+dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
+
 if retConfig.isKFoldCrossVal == 1:
     runCrossVal(svi,elbo,model,guide,allData.testData.monthlyData,globalError,dates,cities[selectedTestCityIndex])
 else:
     loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
     logging.info("first loss train SantaFe = {}".format(loss))
 
-    n_steps = 1000
+    n_steps = 10000
     error_tolerance = 10
+
+    losses=[]
+    maxErrors=[]
 
     # do gradient steps
     for step in range(n_steps):
         loss = svi.step(allData.trainData.monthlyData[0])
+        maxError=np.max(np.absolute(globalError))
+        losses.append(loss)
+        maxErrors.append(maxError)
+        print("maxError {}".format(maxError))
+        globalError = np.zeros(numParticles, dtype=np.int32)
+        #svi.run()
         if step % 10 == 0:
             logging.info("{: >5d}\t{}".format(step, loss))
             # print('.', end='')
             # for name in pyro.get_param_store():
             #     value = pyro.param(name)
             #     print("{} = {}".format(name, value.detach().cpu().numpy()))
-        if globalError[0] <= error_tolerance:
+        if maxError <= error_tolerance:
             break
+
+    plt.figure("loss fig")
+    plt.plot(losses)
+    plt.savefig('tests'+os.sep+'loss_'+dt_string+'_'+cities[selectedTrainCityIndex]+'.png')
+    plt.figure("error fig")
+    plt.plot(maxErrors)
+    plt.savefig('tests'+os.sep+'error_'+dt_string+'_'+cities[selectedTrainCityIndex]+'.png')
+
+    with open('tests'+os.sep+'losses_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex]), 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(losses)
+    with open('tests'+os.sep+'errors_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex]), 'w', encoding='UTF8', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(maxErrors)
+
     print("Final evalulation")
 
     # allDataTrain = loadData(cities[selectedTrainCityIndex], dates, times[selectedTrainRangeIndices])

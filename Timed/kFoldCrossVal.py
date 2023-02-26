@@ -43,7 +43,7 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,globalErr
             # for name in pyro.get_param_store():
             #     value = pyro.param(name)
             #     print("{} = {}".format(name, value.detach().cpu().numpy()))
-        if globalError[0] <= error_tolerance:
+        if loss <= error_tolerance:
             print("Error tolerance {} is obtained".format(error_tolerance))
             break
     print("Final evalulation")
