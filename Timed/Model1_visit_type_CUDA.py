@@ -78,11 +78,11 @@ def guide(data):
     # register prior parameter value. It'll be updated in the guide function
     # with pyro.plate("G", data.G) as g:
     data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
     data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
     data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 12), constraint=constraints.positive).cuda()
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
@@ -166,7 +166,7 @@ allData = loadData(cities[selectedTrainCityIndex],cities[selectedTestCityIndex],
 numParticles=2
 
 # setup the optimizer
-adam_params = {"lr": 0.01, "betas": (0.9, 0.999), "maximize": False}
+adam_params = {"lr": 0.0001, "betas": (0.1, 0.2), "maximize": False}
 optimizer = Adam(adam_params)
 
 # asgd_params = {"lr": 0.0001, "maximize": False}
@@ -202,7 +202,7 @@ optimizer = Adam(adam_params)
 # elbo = Elbo(num_particles=5)
 
 Elbo = RenyiELBO
-elbo = Elbo(alpha=0.1, num_particles=numParticles)
+elbo = Elbo(alpha=0.4, num_particles=numParticles)
 globalError=np.zeros(numParticles, dtype=np.int32)
 
 # Elbo = TraceMeanField_ELBO
@@ -219,6 +219,7 @@ svi = SVI(model, guide, optimizer, loss=elbo)
 
 now = datetime.now()
 dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
+extraMessage="renyiElbo_smallBetas"
 
 if retConfig.isKFoldCrossVal == 1:
     runCrossVal(svi,elbo,model,guide,allData.testData.monthlyData,globalError,dates,cities[selectedTestCityIndex])
@@ -226,8 +227,8 @@ else:
     loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
     logging.info("first loss train SantaFe = {}".format(loss))
 
-    n_steps = 10000
-    error_tolerance = 10
+    n_steps = 4000
+    error_tolerance = 1
 
     losses=[]
     maxErrors=[]
@@ -250,17 +251,18 @@ else:
         if maxError <= error_tolerance:
             break
 
+    #print(os.path.dirname(__file__))
     plt.figure("loss fig")
     plt.plot(losses)
-    plt.savefig('tests'+os.sep+'loss_'+dt_string+'_'+cities[selectedTrainCityIndex]+'.png')
+    plt.savefig(os.path.dirname(__file__)+os.sep+'tests'+os.sep+'loss_'+dt_string+'_'+cities[selectedTrainCityIndex]+'_'+extraMessage+'.png')
     plt.figure("error fig")
     plt.plot(maxErrors)
-    plt.savefig('tests'+os.sep+'error_'+dt_string+'_'+cities[selectedTrainCityIndex]+'.png')
+    plt.savefig(os.path.dirname(__file__)+os.sep+'tests'+os.sep+'error_'+dt_string+'_'+cities[selectedTrainCityIndex]+'_'+extraMessage+'.png')
 
-    with open('tests'+os.sep+'losses_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex]), 'w', encoding='UTF8', newline='') as f:
+    with open('tests'+os.sep+'losses_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(losses)
-    with open('tests'+os.sep+'errors_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex]), 'w', encoding='UTF8', newline='') as f:
+    with open('tests'+os.sep+'errors_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(maxErrors)
 
