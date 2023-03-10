@@ -6,6 +6,7 @@
 
 import os
 import multiprocessing
+from multiprocessing import Queue
 from datetime import datetime
 import matplotlib.pyplot as plt
 import torch.distributions.constraints as constraints
@@ -27,7 +28,7 @@ from dataProcessing import *
 from kFoldCrossVal import *
 
 class Test():
-    def run(self,numParticles,lr,elboType,alpha):
+    def run(self,numParticles,lr,elboType,alpha,i,retVals):
         globalError = np.zeros(1, dtype=np.int32)
 
         def model(data):
@@ -304,9 +305,11 @@ class Test():
             plt.figure("loss fig")
             plt.plot(losses)
             plt.savefig(os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'loss_' + dt_string + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage + '.png')
+            loss_path=os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'loss_' + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage
             plt.figure("error fig")
             plt.plot(maxErrors)
             plt.savefig(os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'error_' + dt_string + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage + '.png')
+            error_path=os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'error_' + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage
 
             with open('tests' + os.sep + 'losses_M1CBG_{}_{}_{}.csv'.format(dt_string, cities[selectedTrainCityIndex], extraMessage), 'w', encoding='UTF8', newline='') as f:
                 writer = csv.writer(f)
@@ -365,26 +368,58 @@ class Test():
             #
             # loss = elbo.loss(model, guide, allData)
             # logging.info("final loss test Seattle = {}".format(loss))
+            # print('!!!456')
+            # print(i)
+            retVals[i] = [losses,maxErrors,loss_path,error_path]
 
 if __name__ ==  '__main__':
-    print('!!!')
+    # manager = multiprocessing.Manager()
+    # retVals = manager.dict()
+    retVals = []
+    p_losses = []
+    p_maxErrors = []
     tests = []
     processes = []
-    numCPUs = 1
+    numCPUs = 4
     pool = multiprocessing.Pool(processes=numCPUs)
-    numTests = 2
+    numTests = 4
+    for i in range(numTests):
+        retVals.append([0,0,'!','!'])
     for i in range(numTests):
         test = Test()
         tests.append(test)
-        # print('!!!123')
-        p = multiprocessing.Process(target=test.run,args=(3, 0.001, "RenyiELBO", 0.2))
-        p.start()
-        processes.append(p)
-        # print('!!!')
+        # p = multiprocessing.Process(target=test.run, args=(3, 0.001, "RenyiELBO", 0.2, i, retVals))
+        test.run(3, 0.001, "RenyiELBO", 0.2, i, retVals)
+        # p.start()
+        # processes.append(p)
+        print('RUN: '+str(i))
+    # for i in range(numTests):
+    #     test = Test()
+    #     tests.append(test)
+    #     # print('!!!123')
+    #     p = multiprocessing.Process(target=test.run,args=(3, 0.001, "RenyiELBO", 0.2,i,retVals))
+    #     p.start()
+    #     processes.append(p)
+    #     # print('!!!')
+    #
+    # for i in range(numTests):
+    #     processes[i].join()
+    #     # print('!!!')
 
-    for i in range(numTests):
-        processes[i].join()
-        # print('!!!')
+    now = datetime.now()
+    dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
+    plt.figure("loss fig")
+    for i in range(len(retVals)):
+        print('!123'+str(retVals[i][0]))
+        print('!1234'+retVals[i][2] + '_' + dt_string + '_summary' + '.png')
+        plt.plot(retVals[i][0])
+    plt.savefig(retVals[0][2] + '_' + dt_string + '_summary' + '.png')
+    plt.figure("error fig")
+    for i in range(len(retVals)):
+        print('!123'+str(retVals[i][1]))
+        print('!1234'+retVals[i][3] + '_' + dt_string + '_summary' + '.png')
+        plt.plot(retVals[i][1])
+    plt.savefig(retVals[0][3] + '_' + dt_string + '_summary' + '.png')
 
     print('!!!')
     # test1=Test()
