@@ -114,6 +114,9 @@ class MonthData:
         self.beta_paramShop = torch.ones(self.G).cuda()
         self.beta_paramSchool = torch.ones(self.G).cuda()
         self.beta_paramReligion = torch.ones(self.G).cuda()
+        self.populationCBG = torch.tensor(data[10].values).cuda()
+        self.NCBG = data[10].shape[0]
+        self.populationNum = ((self.populationCBG * self.N).flatten()).cuda()
 
 class RunConfig:
     def __init__(self, trainCityIndex, trainMonthIndices, testCityIndex, testMonthIndices):
@@ -132,6 +135,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         pOIReligion = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTrain + os.sep+'religionLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
 
         population = pd.read_csv('..'+os.sep+'FixedData'+os.sep + cityTrain + '_population.csv', header=None)
+        populationCBG = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_CBGPopProb.csv', header=None)
         needs = pd.read_csv('..'+os.sep+'FixedData'+os.sep+'Needs_data_numbers.csv', header=None)
 
         isFirst = True
@@ -149,7 +153,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG]
         monthData = MonthData(data)
         trainBundle.monthlyData.append(monthData)
 
@@ -161,6 +165,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         pOIReligion = pd.read_csv('..'+os.sep+'TimedData'+os.sep + cityTest + os.sep+'religionLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
 
         population = pd.read_csv('..'+os.sep+'FixedData'+os.sep + cityTest + '_population.csv', header=None)
+        populationCBG = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_CBGPopProb.csv', header=None)
         needs = pd.read_csv('..'+os.sep+'FixedData'+os.sep+'Needs_data_numbers.csv', header=None)
 
         isFirst = True
@@ -178,7 +183,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb,populationCBG]
         monthData = MonthData(data)
         testBundle.monthlyData.append(monthData)
 

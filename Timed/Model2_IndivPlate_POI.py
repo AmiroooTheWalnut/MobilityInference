@@ -1,6 +1,9 @@
 #   This model assumes that each pair of age-occupation group has needs and one alpha and one beta. The alpha and beta determines how frequently
-# this group attends POI types. This means that individuals can't compensate their attendance because the alpha and beta is shared for a group.
-# This model only investigate the general type of visits and there is no POI involved.
+# this group attends different POIs. This means that individuals can't compensate their attendance because the alpha and beta are shared for a group.
+# This model distinguished the type of visits and the POIs are distinguished.
+# - Individual level samples (latent variable)
+# - Age-Occupation level parameters
+# - POI distinguished visits
 
 import pandas as pd
 import torch

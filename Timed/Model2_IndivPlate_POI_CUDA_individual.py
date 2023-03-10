@@ -1,6 +1,10 @@
-#   This model assumes that each pair of age-occupation group has needs and one alpha and one beta. The alpha and beta determines how frequently
-# this group attends POI types. This means that individuals can't compensate their attendance because the alpha and beta is shared for a group.
-# This model only investigate the general type of visits and there is no POI involved.
+#   This model assumes that individual has a pair one alpha and one beta. The alpha and beta determines how frequently
+# this individual attends different POIs. This model can potentially over-fit the data, but it's very slow to learn.
+# This model distinguished the type of visits and the POIs are distinguished.
+# - Individual level samples (latent variable)
+# - Individual level parameters
+# - POI distinguished visits
+# - CUDA
 
 import pandas as pd
 import torch
@@ -26,9 +30,9 @@ class AllData:
     def __init__(self,data):
         self.pOIs = data[0]
         self.needs = data[1]
-        self.pOIShops = torch.from_numpy(data[4].iloc[:, 1:].values).cuda()
-        self.pOISchools = torch.tensor(data[5].iloc[:, 1:].values).cuda()
-        self.pOIReligion = torch.tensor(data[6].iloc[:, 1:].values).cuda()
+        self.pOIShops = torch.mul(torch.from_numpy(data[4].iloc[:, 1:].values),40).cuda()
+        self.pOISchools = torch.mul(torch.tensor(data[5].iloc[:, 1:].values),40).cuda()
+        self.pOIReligion = torch.mul(torch.tensor(data[6].iloc[:, 1:].values),40).cuda()
         self.pOIShopProb = torch.tensor(data[7].values).flatten().cuda()
         self.pOISchoolProb = torch.tensor(data[8].values).flatten().cuda()
         self.pOIReligionProb = torch.tensor(data[9].values).flatten().cuda()
@@ -69,12 +73,12 @@ class AllData:
         self.G = 15 # age/occupation groups
         self.needsTensor = torch.tensor(needs.values).cuda()
         self.isFirst=data[3]
-        self.alpha_paramShop = torch.ones(self.G).cuda()
-        self.alpha_paramSchool = torch.ones(self.G).cuda()
-        self.alpha_paramReligion = torch.ones(self.G).cuda()
-        self.beta_paramShop = torch.ones(self.G).cuda()
-        self.beta_paramSchool = torch.ones(self.G).cuda()
-        self.beta_paramReligion = torch.ones(self.G).cuda()
+        self.alpha_paramShop = torch.ones(self.N).cuda()
+        self.alpha_paramSchool = torch.ones(self.N).cuda()
+        self.alpha_paramReligion = torch.ones(self.N).cuda()
+        self.beta_paramShop = torch.ones(self.N).cuda()
+        self.beta_paramSchool = torch.ones(self.N).cuda()
+        self.beta_paramReligion = torch.ones(self.N).cuda()
 
 
 pyro.clear_param_store()
@@ -87,35 +91,40 @@ def model(data):
     # beta_paramSchool = torch.ones(data.G).cuda()
     # beta_paramReligion = torch.ones(data.G).cuda()
 
+    # with pyro.plate("N", data.N) as n:
+    #     selAge = pyro.sample("age", dist.Categorical(data.ageProb))
+    #     selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
+    #     with pyro.plate("Nshop", data.Nshop) as nshop:
+    #         shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+    #     with pyro.plate("Nschool", data.Nschool) as nschool:
+    #         schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+    #     with pyro.plate("Nreligion", data.Nreligion) as nreligion:
+    #         religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
         with pyro.plate("Nshop", data.Nshop) as nshop:
-            shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+            # shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 0]))
+            shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(data.alpha_paramShop[n], data.beta_paramShop[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
         with pyro.plate("Nschool", data.Nschool) as nschool:
-            schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+            # schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 1]))
+            schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(data.alpha_paramSchool[n], data.beta_paramSchool[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
         with pyro.plate("Nreligion", data.Nreligion) as nreligion:
-            religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+            # religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 2]))
+            religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(data.alpha_paramReligion[n], data.beta_paramReligion[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
 
-    print(torch.mul(torch.abs(shopVisits.sum(1)), data.pOIShopProb).sum() - data.pOIShops.sum() + torch.mul(torch.abs(schoolVisits.sum(1)), data.pOISchoolProb).sum() - data.pOISchools.sum() + torch.mul(torch.abs(religionVisits.sum(1)), data.pOIReligionProb).sum() - data.pOIReligion.sum())
-
-    if data.isFirst:
-        # obsRaw = np.transpose(data.pOIs.iloc[:][1])
-        # obs = torch.zeros(data.NE)
-        # for i in range(data.NE):
-        #     obs[i] = obsRaw.iloc[i]
-        #     obs[i] = torch.div(obs[i], 100)
-        print(torch.mul(torch.abs(shopVisits.sum(1)), data.pOIShopProb).sum() - data.pOIShops.sum() + torch.mul(torch.abs(schoolVisits.sum(1)), data.pOISchoolProb).sum() - data.pOISchools.sum() + torch.mul(torch.abs(religionVisits.sum(1)), data.pOIReligionProb).sum() - data.pOIReligion.sum())
-        data.isFirst = False
-
+    newVecShop=[]
+    newVecSchool=[]
+    newVecReligion=[]
     with pyro.plate("Nshop_prime", data.Nshop) as nshop:
         shopVisitsPOIs=shopVisits.sum(1).cuda()
         shopVisitsPOIsAdjusted=torch.mul(shopVisitsPOIs, data.pOIShopProb).cuda()
         expectedSum = shopVisitsPOIs.sum().cuda()
         newSum = shopVisitsPOIsAdjusted.sum().cuda()
         diff = expectedSum-newSum
-        newSum = torch.add(shopVisitsPOIsAdjusted,torch.div(diff,shopVisitsPOIs.size(dim=0))).cuda()
-        pyro.sample("S_Shop", dist.Poisson(newSum).to_event(1),obs=data.pOIShops)
+        newVecShop = torch.add(shopVisitsPOIsAdjusted,torch.div(diff,shopVisitsPOIs.size(dim=0))).cuda()
+        pyro.sample("S_Shop", dist.Poisson(newVecShop).to_event(1),obs=data.pOIShops)
         # del shopVisitsPOIs
         # del shopVisits
         # del shopVisitsPOIsAdjusted
@@ -129,8 +138,8 @@ def model(data):
         expectedSum = schoolVisitsPOIs.sum().cuda()
         newSum = schoolVisitsPOIsAdjusted.sum().cuda()
         diff = expectedSum - newSum
-        newSum = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
-        pyro.sample("S_School", dist.Poisson(newSum).to_event(1),obs=data.pOISchools)
+        newVecSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
+        pyro.sample("S_School", dist.Poisson(newVecSchool).to_event(1),obs=data.pOISchools)
         # del schoolVisitsPOIs
         # del schoolVisits
         # del schoolVisitsPOIsAdjusted
@@ -144,8 +153,8 @@ def model(data):
         expectedSum = religionVisitsPOIs.sum().cuda()
         newSum = religionVisitsPOIsAdjusted.sum().cuda()
         diff = expectedSum - newSum
-        newSum = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
-        pyro.sample("S_Religion",dist.Poisson(newSum).to_event(1), obs=data.pOIReligion)
+        newVecReligion = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
+        pyro.sample("S_Religion",dist.Poisson(newVecReligion).to_event(1), obs=data.pOIReligion)
         # del religionVisitsPOIs
         # del religionVisits
         # del religionVisitsPOIsAdjusted
@@ -153,6 +162,17 @@ def model(data):
         # del newSum
         # gc.collect()
         # torch.cuda.empty_cache()
+
+    print(newVecShop.sum() - data.pOIShops.sum() + newVecSchool.sum() - data.pOISchools.sum() + newVecReligion.sum() - data.pOIReligion.sum())
+
+    if data.isFirst:
+        # obsRaw = np.transpose(data.pOIs.iloc[:][1])
+        # obs = torch.zeros(data.NE)
+        # for i in range(data.NE):
+        #     obs[i] = obsRaw.iloc[i]
+        #     obs[i] = torch.div(obs[i], 100)
+        print(newVecShop.sum() - data.pOIShops.sum() + newVecSchool.sum() - data.pOISchools.sum() + newVecReligion.sum() - data.pOIReligion.sum())
+        data.isFirst = False
 
     # obsRaw = np.transpose(data.pOIs.iloc[:][1])
     # obs = torch.zeros(data.NE)
@@ -173,22 +193,25 @@ def guide(data):
     # maxParam = 100
 
     # register prior parameter value. It'll be updated in the guide function
-    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.1), constraint=constraints.positive).cuda()
-    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 120), constraint=constraints.positive).cuda()
-    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.1), constraint=constraints.positive).cuda()
-    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 120), constraint=constraints.positive).cuda()
-    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.1), constraint=constraints.positive).cuda()
-    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 120), constraint=constraints.positive).cuda()
+    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.N), 0.1), constraint=constraints.positive).cuda()
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.N), 11.7), constraint=constraints.positive).cuda()
+    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.N), 0.1), constraint=constraints.positive).cuda()
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.N), 11.7), constraint=constraints.positive).cuda()
+    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.N), 0.1), constraint=constraints.positive).cuda()
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.N), 11.7), constraint=constraints.positive).cuda()
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
         with pyro.plate("Nshop", data.Nshop) as nshop:
-            pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 0]))
+            # pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 0]))
+            pyro.sample("Tu_Shop", dist.BetaBinomial(data.alpha_paramShop[n], data.beta_paramShop[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
         with pyro.plate("Nschool", data.Nschool) as nschool:
-            pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 1]))
+            # pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 1]))
+            pyro.sample("Tu_School", dist.BetaBinomial(data.alpha_paramSchool[n], data.beta_paramSchool[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
         with pyro.plate("Nreligion", data.Nreligion) as nreligion:
-            pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 2]))
+            # pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n]*5+selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n]*5+selOccupation[n]]), data.needsTensor[selAge[n]*5+selOccupation[n]][:, 2]))
+            pyro.sample("Tu_Religion", dist.BetaBinomial(data.alpha_paramReligion[n], data.beta_paramReligion[n], data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
     # del selAge
     # del selOccupation
     # gc.collect()
@@ -227,7 +250,7 @@ allData=AllData(data)
 # graph.view()
 
 # setup the optimizer
-adam_params = {"lr": 0.001, "betas": (0.9, 0.999), "maximize": False}
+adam_params = {"lr": 0.0001, "betas": (0.9, 0.999), "maximize": False}
 optimizer = Adam(adam_params)
 
 # asgd_params = {"lr": 0.00001, "maximize": False}

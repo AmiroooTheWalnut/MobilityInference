@@ -1,9 +1,10 @@
 #   This model assumes that each pair of age-occupation group has needs and one alpha and one beta. The alpha and beta determines how frequently
-# this group attends POI types. This means that individuals can't compensate their attendance because the alpha and beta is shared for a group.
+# this group attends POI types. This means that individuals can't compensate their attendance because the alpha and beta are shared for a group.
 # This model only investigate the general type of visits and there is no POI involved.
+# - Individual level samples (latent variable)
+# - Age-Occupation level parameters
 
 import os
-import sys
 from datetime import datetime
 import matplotlib.pyplot as plt
 import torch.distributions.constraints as constraints
@@ -21,12 +22,10 @@ from pyro.optim import ExponentialLR
 from pyro.optim import Rprop
 from pyro.optim import AdamW
 from pyro.optim import Adadelta
-from dataProcessing_CUDA import *
+from dataProcessing import *
 from kFoldCrossVal import *
 
 globalError = np.zeros(1, dtype=np.int32)
-
-
 
 def model(data):
     # with pyro.plate("G", data.G) as g:
@@ -40,7 +39,7 @@ def model(data):
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-        shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+        shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
         schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
         religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
 
@@ -77,25 +76,26 @@ def guide(data):
 
     # register prior parameter value. It'll be updated in the guide function
     # with pyro.plate("G", data.G) as g:
-    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
-    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
-    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
+    data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+    data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+    data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+    data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+    data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+    data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
 
     with pyro.plate("N", data.N) as n:
         selAge = pyro.sample("age", dist.Categorical(data.ageProb))
         selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-        pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n]][selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+        pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
         pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
         pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+
 
 #def makeTestConfig(test):
 #    jsonStr = json.dumps(test.__dict__)
 #    print(jsonStr)
 
-# testConfig= Config(0,0,[0],[1],1)
+# testConfig= Config(0,0,[0],[1])
 # file = open("tucson_test1.conf", "w")
 # file.write(testConfig.toJSON())
 # file.close()
@@ -163,10 +163,10 @@ allData = loadData(cities[selectedTrainCityIndex],cities[selectedTestCityIndex],
 #graph = pyro.render_model(model, model_args=(allData.trainData.monthlyData[0],), render_distributions=True, render_params=True)
 #graph.view()
 
-numParticles=2
+numParticles=3
 
 # setup the optimizer
-adam_params = {"lr": 0.0001, "betas": (0.1, 0.2), "maximize": False}
+adam_params = {"lr": 0.001, "betas": (0.9, 0.999), "maximize": False}
 optimizer = Adam(adam_params)
 
 # asgd_params = {"lr": 0.0001, "maximize": False}
@@ -202,7 +202,7 @@ optimizer = Adam(adam_params)
 # elbo = Elbo(num_particles=5)
 
 Elbo = RenyiELBO
-elbo = Elbo(alpha=0.4, num_particles=numParticles)
+elbo = Elbo(alpha=0.2, num_particles=numParticles)
 globalError=np.zeros(numParticles, dtype=np.int32)
 
 # Elbo = TraceMeanField_ELBO
@@ -259,10 +259,10 @@ else:
     plt.plot(maxErrors)
     plt.savefig(os.path.dirname(__file__)+os.sep+'tests'+os.sep+'error_'+dt_string+'_'+cities[selectedTrainCityIndex]+'_'+extraMessage+'.png')
 
-    with open('tests'+os.sep+'losses_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
+    with open('tests'+os.sep+'losses_indiv_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(losses)
-    with open('tests'+os.sep+'errors_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
+    with open('tests'+os.sep+'errors_indiv_{}_{}_{}.csv'.format(dt_string,cities[selectedTrainCityIndex],extraMessage), 'w', encoding='UTF8', newline='') as f:
         writer = csv.writer(f)
         writer.writerow(maxErrors)
 
@@ -314,5 +314,3 @@ else:
     #
     # loss = elbo.loss(model, guide, allData)
     # logging.info("final loss test Seattle = {}".format(loss))
-
-

@@ -105,6 +105,7 @@ class MonthData:
         self.M = 1  # months
         self.NE = 3  # needs
         self.G = 15  # age/occupation groups
+        #self.needsTensor = torch.tensor(self.needs.values).div(4).ceil()
         self.needsTensor = torch.tensor(self.needs.values)
         self.isFirst = data[3]
         self.alpha_paramShop = torch.ones(self.G)
@@ -113,6 +114,9 @@ class MonthData:
         self.beta_paramShop = torch.ones(self.G)
         self.beta_paramSchool = torch.ones(self.G)
         self.beta_paramReligion = torch.ones(self.G)
+        self.populationCBG = torch.tensor(data[10].values)
+        self.NCBG = data[10].shape[0]
+        self.populationNum = (self.populationCBG*self.N).flatten()
 
 class RunConfig:
     def __init__(self, trainCityIndex, trainMonthIndices, testCityIndex, testMonthIndices):
@@ -130,6 +134,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         pOIReligion = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'religionLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
 
         population = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_population.csv', header=None)
+        populationCBG = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_CBGPopProb.csv', header=None)
         needs = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data_numbers.csv', header=None)
 
         isFirst = True
@@ -147,7 +152,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG]
         monthData = MonthData(data)
         trainBundle.monthlyData.append(monthData)
 
@@ -176,7 +181,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG]
         monthData = MonthData(data)
         testBundle.monthlyData.append(monthData)
 
