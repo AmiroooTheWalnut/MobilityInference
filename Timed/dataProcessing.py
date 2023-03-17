@@ -118,6 +118,16 @@ class MonthData:
         self.NCBG = data[10].shape[0]
         self.populationNum = (self.populationCBG*self.N).flatten()
 
+        # DEBUG
+        self.expectationDebugCounter = 0
+        self.resultFromSampleSumIP = 0
+        self.resultFromSampleSumIB = 0
+        self.resultFromAvgAllIP = []
+        self.resultFromAvgAllIB = []
+        self.resultFromEEAll = []
+        self.resultSamplesIP = []
+        self.resultSamplesIB = []
+
 class RunConfig:
     def __init__(self, trainCityIndex, trainMonthIndices, testCityIndex, testMonthIndices):
         self.trainCityIndex=trainCityIndex
