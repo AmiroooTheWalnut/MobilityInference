@@ -190,46 +190,46 @@ class Test():
             return shopVisitsObs, schoolVisitsObs, religionVisitsObs
 
         def guide(data):
-            # temp_alpha_paramShop = torch.add(torch.zeros(data.G), 0.2)
-            # temp_alpha_paramShop[6] = 0.5
-            # temp_alpha_paramShop[7] = 0.5
-            # temp_alpha_paramShop[8] = 0.4
-            # temp_alpha_paramShop[9] = 0.4
-            # temp_beta_paramShop = torch.add(torch.zeros(data.G), 13.4)
-            # temp_beta_paramShop[6] = 11
-            # temp_beta_paramShop[7] = 11
-            # temp_beta_paramShop[8] = 12
-            # temp_beta_paramShop[9] = 12
-            # temp_alpha_paramSchool = torch.add(torch.zeros(data.G), 0.2)
-            # temp_alpha_paramSchool[0] = 0.4
-            # temp_alpha_paramSchool[1] = 0.4
-            # temp_alpha_paramSchool[5] = 0.4
-            # temp_alpha_paramSchool[8] = 0.4
-            # temp_beta_paramSchool = torch.add(torch.zeros(data.G), 13.4)
-            # temp_beta_paramSchool[0] = 12
-            # temp_beta_paramSchool[1] = 12
-            # temp_beta_paramSchool[5] = 12
-            # temp_beta_paramSchool[8] = 12
-            # temp_alpha_paramRel = torch.add(torch.zeros(data.G), 0.2)
-            # temp_alpha_paramRel[11] = 0.4
-            # temp_alpha_paramRel[14] = 0.4
-            # temp_beta_paramRel = torch.add(torch.zeros(data.G), 13.4)
-            # temp_beta_paramRel[11] = 12
-            # temp_beta_paramRel[14] = 12
-            # data.alpha_paramShop = pyro.param("alpha_paramShop_G", temp_alpha_paramShop, constraint=constraints.positive)
-            # data.beta_paramShop = pyro.param("beta_paramShop_G", temp_beta_paramShop, constraint=constraints.positive)
-            # data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", temp_alpha_paramSchool, constraint=constraints.positive)
-            # data.beta_paramSchool = pyro.param("beta_paramSchool_G", temp_beta_paramSchool, constraint=constraints.positive)
-            # data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive)
-            # data.beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive)
+            temp_alpha_paramShop = torch.add(torch.zeros(data.G), 0.2)
+            temp_alpha_paramShop[6] = 0.5
+            temp_alpha_paramShop[7] = 0.5
+            temp_alpha_paramShop[8] = 0.4
+            temp_alpha_paramShop[9] = 0.4
+            temp_beta_paramShop = torch.add(torch.zeros(data.G), 13.4)
+            temp_beta_paramShop[6] = 11
+            temp_beta_paramShop[7] = 11
+            temp_beta_paramShop[8] = 12
+            temp_beta_paramShop[9] = 12
+            temp_alpha_paramSchool = torch.add(torch.zeros(data.G), 0.2)
+            temp_alpha_paramSchool[0] = 0.4
+            temp_alpha_paramSchool[1] = 0.4
+            temp_alpha_paramSchool[5] = 0.4
+            temp_alpha_paramSchool[8] = 0.4
+            temp_beta_paramSchool = torch.add(torch.zeros(data.G), 13.4)
+            temp_beta_paramSchool[0] = 12
+            temp_beta_paramSchool[1] = 12
+            temp_beta_paramSchool[5] = 12
+            temp_beta_paramSchool[8] = 12
+            temp_alpha_paramRel = torch.add(torch.zeros(data.G), 0.2)
+            temp_alpha_paramRel[11] = 0.4
+            temp_alpha_paramRel[14] = 0.4
+            temp_beta_paramRel = torch.add(torch.zeros(data.G), 13.4)
+            temp_beta_paramRel[11] = 12
+            temp_beta_paramRel[14] = 12
+            data.alpha_paramShop = pyro.param("alpha_paramShop_G", temp_alpha_paramShop, constraint=constraints.positive)
+            data.beta_paramShop = pyro.param("beta_paramShop_G", temp_beta_paramShop, constraint=constraints.positive)
+            data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", temp_alpha_paramSchool, constraint=constraints.positive)
+            data.beta_paramSchool = pyro.param("beta_paramSchool_G", temp_beta_paramSchool, constraint=constraints.positive)
+            data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive)
+            data.beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive)
 
             # register prior parameter value. It'll be updated in the guide function
-            data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
-            data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
-            data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+            # data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+            # data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+            # data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
 
             # groupProbs = (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).reshape([data.G, 1])
             # needsSh = data.needsTensor[:, 0].reshape([data.G, 1])
@@ -407,7 +407,7 @@ class Test():
             loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
             logging.info("first loss train SantaFe = {}".format(loss))
 
-            n_steps = 5000
+            n_steps = 10000
             error_tolerance = 1
 
             losses = []
@@ -552,7 +552,7 @@ if __name__ ==  '__main__':
         test = Test()
         tests.append(test)
         # print('!!!123')
-        p = multiprocessing.Process(target=test.run,args=(5, 0.001, "RenyiELBO", 0.2,i,retVals))
+        p = multiprocessing.Process(target=test.run,args=(5, 0.001, "Trace_ELBO", 0.2,i,retVals))
         p.start()
         processes.append(p)
         # print('!!!')
