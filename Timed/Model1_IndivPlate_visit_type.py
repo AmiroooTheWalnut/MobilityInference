@@ -32,6 +32,7 @@ from pyro.optim import SGD
 from dataProcessing import *
 from kFoldCrossVal import *
 
+
 globalError = np.zeros(1, dtype=np.int32)
 
 class Test():
@@ -71,7 +72,7 @@ class Test():
             for i in range(globalError.shape[0]):
                 if globalError[i] == 0:
                     globalError[i] = torch.absolute(shopVisits.sum(-1, True) - data.pOIs[0, 1]) + torch.absolute(schoolVisits.sum(-1, True) - data.pOIs[1, 1]) + torch.absolute(religionVisits.sum(-1, True) - data.pOIs[2, 1])
-                    print("within errors {}".format(globalError[i]))
+                    # print("within errors {}".format(globalError[i]))
                     break
 
             if data.isFirst == True:
@@ -87,12 +88,12 @@ class Test():
 
         def guide(data):
 
-            # data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-            # data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
-            # data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-            # data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
-            # data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive).cuda()
-            # data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive).cuda()
+            # data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+            # data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
+            # data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
+            # data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
 
             temp_alpha_paramShop = torch.add(torch.zeros(data.G), 0.2)
             temp_alpha_paramShop[6] = 0.5
@@ -120,12 +121,12 @@ class Test():
             temp_beta_paramRel = torch.add(torch.zeros(data.G), 13.4)
             temp_beta_paramRel[11] = 12
             temp_beta_paramRel[14] = 12
-            data.alpha_paramShop = pyro.param("alpha_paramShop_G", temp_alpha_paramShop, constraint=constraints.positive).cuda()
-            data.beta_paramShop = pyro.param("beta_paramShop_G", temp_beta_paramShop, constraint=constraints.positive).cuda()
-            data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", temp_alpha_paramSchool, constraint=constraints.positive).cuda()
-            data.beta_paramSchool = pyro.param("beta_paramSchool_G", temp_beta_paramSchool, constraint=constraints.positive).cuda()
-            data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive).cuda()
-            data.beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive).cuda()
+            data.alpha_paramShop = pyro.param("alpha_paramShop_G", temp_alpha_paramShop, constraint=constraints.positive)
+            data.beta_paramShop = pyro.param("beta_paramShop_G", temp_beta_paramShop, constraint=constraints.positive)
+            data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", temp_alpha_paramSchool, constraint=constraints.positive)
+            data.beta_paramSchool = pyro.param("beta_paramSchool_G", temp_beta_paramSchool, constraint=constraints.positive)
+            data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive)
+            data.beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive)
 
             with pyro.plate("N", data.N) as n:
                 selAge = pyro.sample("age", dist.Categorical(data.ageProb))
@@ -263,7 +264,7 @@ class Test():
             loss = elbo.loss(model, guide, allData.trainData.monthlyData[0])
             logging.info("first loss train SantaFe = {}".format(loss))
 
-            n_steps = 3000
+            n_steps = 1000
             error_tolerance = 1
 
             losses = []
@@ -417,7 +418,7 @@ if __name__ == '__main__':
         test = Test()
         tests.append(test)
         # print('!!!123')
-        p = multiprocessing.Process(target=test.run, args=(5, 0.8, "RenyiELBO", 0.2, i, retVals))
+        p = multiprocessing.Process(target=test.run, args=(3, 0.8, "RenyiELBO", 0.2, i, retVals))
         p.start()
         processes.append(p)
         # print('!!!')
