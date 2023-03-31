@@ -10,16 +10,28 @@ import torch
 import torch.distributions.constraints as constraints
 import pyro
 
-def showAlphaBetaRange(type,alpha,beta,needsVerbose):
+def showAlphaBetaRange(type,data,alpha,beta,needsVerbose):
     fig = go.Figure()
 
-    ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
-    thresh=torch.div(alpha, alpha + beta)
-    threshStr = [str(s) for s in thresh.tolist()]
+    ageOccupation=[]
+    for i in range(data.occupationProb.shape[1]):
+        for j in range(data.occupationProb.shape[0]):
+            ageOccupation.append(needsVerbose["age range"][i+j*data.occupationProb.shape[1]]+needsVerbose["Occupation"][i])
+    # ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
+    thresh = torch.div(alpha, alpha + beta)
+    if type == 'CBG based simulation':
+        thresh=torch.mul(thresh, data.BBNSh.sum(-1)/data.BBNSh.shape[1])
+        xLim=data.BBNSh.sum(-1)/data.BBNSh.shape[1]
+        xLim=xLim.tolist()
+    else:
+        xLim=needsVerbose['Retailing services']
+    thresh=thresh.tolist()
+
+    threshStr = [str(s) for s in thresh]
 
     for i in range(len(needsVerbose)):
         fig.add_trace(go.Scatter(
-            x=[0, needsVerbose['Retailing services'][i]],
+            x=[0, xLim[i]],
             y=[ageOccupation[i], ageOccupation[i]],
             orientation='h',
             line=dict(color='rgb(244,165,130)', width=8),
@@ -32,9 +44,9 @@ def showAlphaBetaRange(type,alpha,beta,needsVerbose):
         mode='markers+text',
         text=threshStr,
         textposition='middle left',
-        name='Woman'))
+        name='alpha/(alpha+beta)'))
 
-    fig.update_layout(title="Sample plotly", showlegend=False)
+    fig.update_layout(title=type, showlegend=False)
 
     fig.show()
 

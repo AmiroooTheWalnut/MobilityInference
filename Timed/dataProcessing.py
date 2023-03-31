@@ -118,6 +118,10 @@ class MonthData:
         self.NCBG = data[10].shape[0]
         self.populationNum = (self.populationCBG*self.N).flatten()
 
+        self.BBNSh=0
+        self.BBNSch=0
+        self.BBNRel=0
+
         # DEBUG
         self.expectationDebugCounter = 0
         self.resultFromSampleSumIP = 0

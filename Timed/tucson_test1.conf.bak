@@ -1,8 +1,8 @@
 {
 	"isKFoldCrossVal": 0,
-    "testCityIndex": 0,
+    "testCityIndex": 1,
     "testTimeRange": [
-        1,2,3,4,5,6
+        0,1,2,3,4,5,6
     ],
     "trainCityIndex": 0,
     "trainTimeRange": [
