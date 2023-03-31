@@ -370,7 +370,7 @@ class Test():
 
         allData = loadData(cities[selectedTrainCityIndex], cities[selectedTestCityIndex], dates, selectedTrainRangeIndices, selectedTestRangeIndices)
 
-        needsVerbose = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data_numbers.csv', header=None)
+        needsVerbose = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data_numbers.csv')
 
         showAlphaBetaRange(None, allData.trainData.monthlyData[0].alpha_paramShop, allData.trainData.monthlyData[0].beta_paramShop, needsVerbose)
 
