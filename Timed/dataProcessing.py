@@ -122,6 +122,8 @@ class MonthData:
         self.BBNSch=0
         self.BBNRel=0
 
+        self.globalError = np.zeros(1, dtype=np.int32)
+
         # DEBUG
         self.expectationDebugCounter = 0
         self.resultFromSampleSumIP = 0

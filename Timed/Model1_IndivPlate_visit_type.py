@@ -53,12 +53,12 @@ class Test():
             #     beta_paramSchool = torch.ones(data.G)
             #     beta_paramReligion = torch.ones(data.G)
 
-            with pyro.plate("N", data.N) as n:
-                selAge = pyro.sample("age", dist.Categorical(data.ageProb))
-                selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-                shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramShop[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
-                schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
-                religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data.beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+            with pyro.plate("N", data[0].N) as n:
+                selAge = pyro.sample("age", dist.Categorical(data[0].ageProb))
+                selOccupation = pyro.sample("occupation", dist.Categorical(data[0].occupationProb[selAge[n], :]))
+                shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data[0].alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(data[0].beta_paramShop[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+                schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data[0].alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(data[0].beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+                religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data[0].alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(data[0].beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data.needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
 
             shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(torch.abs(shopVisits.sum(-1, True))).to_event(1), obs=data.pOIs[0, 1])
             schoolVisitsObs = pyro.sample("S_School", dist.Poisson(torch.abs(schoolVisits.sum(-1, True))).to_event(1), obs=data.pOIs[1, 1])
