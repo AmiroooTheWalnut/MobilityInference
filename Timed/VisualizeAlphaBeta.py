@@ -20,7 +20,8 @@ def showAlphaBetaRange(type,data,alpha,beta,needsVerbose):
     # ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
     thresh = torch.div(alpha, alpha + beta)
     if type == 'CBG based simulation':
-        thresh=torch.mul(thresh, data.BBNSh.sum(-1)/data.BBNSh.shape[1])
+        avgCPU=(data.BBNSh.sum(-1) / data.BBNSh.shape[1]).cpu()
+        thresh=torch.mul(thresh, avgCPU)
         xLim=data.BBNSh.sum(-1)/data.BBNSh.shape[1]
         xLim=xLim.tolist()
     else:

@@ -28,20 +28,81 @@ class DataBundle:
 
     @staticmethod
     def loadDataToGPU(data):
-        data.pOIs.cuda()
-        data.pOIShops.cuda()
-        data.pOISchools.cuda()
-        data.pOIReligion.cuda()
-        data.pOIShopProb.cuda()
-        data.pOISchoolProb.cuda()
-        data.pOIReligionProb.cuda()
-        data.needsTensor.cuda()
-        data.alpha_paramShop.cuda()
-        data.alpha_paramSchool.cuda()
-        data.alpha_paramReligion.cuda()
-        data.beta_paramShop.cuda()
-        data.beta_paramSchool.cuda()
-        data.beta_paramReligion.cuda()
+        # data.pOIs.cuda()
+        # data.pOIShops.cuda()
+        # data.pOISchools.cuda()
+        # data.pOIReligion.cuda()
+        # data.pOIShopProb.cuda()
+        # data.pOISchoolProb.cuda()
+        # data.pOIReligionProb.cuda()
+        # data.needsTensor.cuda()
+        # data.alpha_paramShop.cuda()
+        # data.alpha_paramSchool.cuda()
+        # data.alpha_paramReligion.cuda()
+        # data.beta_paramShop.cuda()
+        # data.beta_paramSchool.cuda()
+        # data.beta_paramReligion.cuda()
+
+        data.pOIs=data.pOIs.cuda()
+        data.needsTensor=data.needsTensor.cuda()
+        data.pOIShops=data.pOIShops.cuda()
+        data.pOISchools=data.pOISchools.cuda()
+        data.pOIReligion=data.pOIReligion.cuda()
+        data.pOIShopProb=data.pOIShopProb.cuda()
+        data.pOISchoolProb=data.pOISchoolProb.cuda()
+        data.pOIReligionProb=data.pOIReligionProb.cuda()
+        # data.ageCategories.cuda()
+        # data.occupationCategories.cuda()
+        # data.needCategories.cuda()
+        data.ageProb=data.ageProb.cuda()  # age0: 0-18, age1: 18-65, age2: 65+
+        # data.ageProb.cuda()
+        data.occupationProb=data.occupationProb.cuda() # occupation0: student, occupation1: service, occupation2: driver, occupation3: education, occupation4: unemployed
+
+        # data.P.cuda() # places
+        # data.N.cuda()  # people
+        # data.Nshop.cuda()
+        # data.Nschool.cuda()
+        # data.Nreligion.cuda()
+        # data.D.cuda()  # days
+        # data.M.cuda()  # months
+        # data.NE.cuda()  # needs
+        # data.G.cuda()  # age/occupation groups
+        # self.needsTensor = torch.tensor(self.needs.values).div(4).ceil()
+        # self.isFirst = data[3]
+        data.alpha_paramShop=data.alpha_paramShop.cuda()
+        data.alpha_paramSchool=data.alpha_paramSchool.cuda()
+        data.alpha_paramReligion=data.alpha_paramReligion.cuda()
+        data.beta_paramShop=data.beta_paramShop.cuda()
+        data.beta_paramSchool=data.beta_paramSchool.cuda()
+        data.beta_paramReligion=data.beta_paramReligion.cuda()
+        data.populationCBG=data.populationCBG.cuda()
+        # data.NCBG.cuda()
+        data.populationNum=data.populationNum.cuda()
+
+        # self.BBNSh=0
+        # self.BBNSch=0
+        # self.BBNRel=0
+
+        # data.globalError.cuda()
+
+        # RELATED TO CBG MODELING
+        data.groupProbs=data.groupProbs.cuda()
+        data.needsSh=data.needsSh.cuda()
+        data.needsSch=data.needsSch.cuda()
+        data.needsRel=data.needsRel.cuda()
+        data.BBNSh=data.BBNSh.cuda()
+        data.BBNSch=data.BBNSch.cuda()
+        data.BBNRel=data.BBNRel.cuda()
+
+        # DEBUG
+        # self.expectationDebugCounter = 0
+        # self.resultFromSampleSumIP = 0
+        # self.resultFromSampleSumIB = 0
+        # self.resultFromAvgAllIP = []
+        # self.resultFromAvgAllIB = []
+        # self.resultFromEEAll = []
+        # self.resultSamplesIP = []
+        # self.resultSamplesIB = []
 
     @staticmethod
     def unloadDataToGPU(data):
@@ -64,6 +125,9 @@ class MonthData:
     def __init__(self, data):
         self.pOIs = torch.tensor(data[0].values)
         self.needs = data[1]
+
+        self.isModel2 = 0
+
         self.pOIShops = torch.tensor(data[4].iloc[:, 1:].values)
         self.pOISchools = torch.tensor(data[5].iloc[:, 1:].values)
         self.pOIReligion = torch.tensor(data[6].iloc[:, 1:].values)
@@ -118,11 +182,32 @@ class MonthData:
         self.NCBG = data[10].shape[0]
         self.populationNum = (self.populationCBG*self.N).flatten()
 
-        self.BBNSh=0
-        self.BBNSch=0
-        self.BBNRel=0
+        # self.BBNSh=0
+        # self.BBNSch=0
+        # self.BBNRel=0
 
         self.globalError = np.zeros(1, dtype=np.int32)
+
+        # RELATED TO CBG MODELING
+        if data[11] == 1:
+            self.groupProbs = (torch.transpose(self.occupationProb, 0, 1) * self.ageProb).reshape([self.G, 1])
+            self.needsSh = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsSch = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsRel = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+        elif data[11] == 2:
+            self.groupProbs = (torch.transpose(self.occupationProb, 0, 1) * self.ageProb).reshape([self.G, 1])
+            self.needsSh = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsSch = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsRel = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsSh = self.needsSh / self.Nshop
+            self.needsSch = self.needsSch / self.Nschool
+            self.needsRel = self.needsRel / self.Nreligion
+        self.BBNSh = (self.needsSh * self.groupProbs * self.populationNum.repeat([self.G, 1])).round()
+        self.BBNSch = (self.needsSch * self.groupProbs * self.populationNum.repeat([self.G, 1])).round()
+        self.BBNRel = (self.needsRel * self.groupProbs * self.populationNum.repeat([self.G, 1])).round()
+        self.BBNSh[self.BBNSh == 0] = 1
+        self.BBNSch[self.BBNSch == 0] = 1
+        self.BBNRel[self.BBNRel == 0] = 1
 
         # DEBUG
         self.expectationDebugCounter = 0
@@ -141,7 +226,7 @@ class RunConfig:
         self.testCityIndex=testCityIndex
         self.testMonthIndices=testMonthIndices
 
-def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
+def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex):
     trainBundle = DataBundle(cityTrain, monthsTrain)
     for i in range(len(monthsTrain)):
         visits = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'FullSimple_' + dates[monthsTrain[i]] + '.csv', header=None)
@@ -168,7 +253,8 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex]
+
         monthData = MonthData(data)
         trainBundle.monthlyData.append(monthData)
 
@@ -197,7 +283,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest):
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex]
         monthData = MonthData(data)
         testBundle.monthlyData.append(monthData)
 
