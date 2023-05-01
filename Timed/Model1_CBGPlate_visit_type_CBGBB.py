@@ -30,6 +30,8 @@ from pyro.optim import SGD
 from dataProcessing import *
 from kFoldCrossVal import *
 from VisualizeAlphaBeta import *
+import torch
+import pyro
 
 class Test():
 
@@ -42,9 +44,6 @@ class Test():
 
         def model(data):
             groupProbs = (torch.transpose(data[0].occupationProb, 0, 1) * data[0].ageProb).reshape([data[0].G, 1])
-            # needsSh = data.needsTensor[:, 0].reshape([data.G,1])
-            # needsSch = data.needsTensor[:, 1].reshape([data.G, 1])
-            # needsRel = data.needsTensor[:, 2].reshape([data.G, 1])
             needsSh = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0],data[0].occupationProb.shape[1]]).transpose(0,1).reshape([data[0].G,1])
             needsSch = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0],data[0].occupationProb.shape[1]]).transpose(0,1).reshape([data[0].G,1])
             needsRel = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0],data[0].occupationProb.shape[1]]).transpose(0,1).reshape([data[0].G,1])
@@ -55,138 +54,20 @@ class Test():
             data[0].BBNSch[data[0].BBNSch == 0] = 1
             data[0].BBNRel[data[0].BBNRel == 0] = 1
 
-            # \/\/\/ DEBUG EXPECTED VALUE
-            # groupCBGPop=groupProbs * data.populationNum.repeat([data.G, 1])
-            # firstGroupFirstCBGPop=groupCBGPop[0,0]
-            # onePersonInCBG=pyro.sample("Tu_Shop_debugIP", dist.BetaBinomial(data.alpha_paramShop[0], data.beta_paramShop[0], data.needsTensor[0][0]))
-            #
-            # oneBigPersonInCBG = pyro.sample("Tu_Shop_debugIB", dist.BetaBinomial(data.alpha_paramShop[0], data.beta_paramShop[0], BBNSh[0][0]))
-            # data.resultSamplesIB.append(oneBigPersonInCBG)
-            # resultFromSample=onePersonInCBG*firstGroupFirstCBGPop
-            # data.resultSamplesIP.append(resultFromSample)
-            # resultFromExpectation=firstGroupFirstCBGPop*data.needsTensor[0][0]*data.alpha_paramShop[0]/(data.alpha_paramShop[0]+data.beta_paramShop[0])
-            # # print("resultFromSample")
-            # # print("resultFromSample "+str(resultFromSample.item()))
-            # # if resultFromSample.item()>0:
-            # #     print("!!!")
-            # # print("resultFromExpectation")
-            # # print("resultFromExpectation "+str(resultFromExpectation.item()))
-            # data.resultFromSampleSumIP=data.resultFromSampleSumIP+resultFromSample
-            # data.expectationDebugCounter=data.expectationDebugCounter+1
-            # resultFromSampleAvgIP=data.resultFromSampleSumIP/data.expectationDebugCounter
-            # data.resultFromSampleSumIB = data.resultFromSampleSumIB + oneBigPersonInCBG
-            # data.resultFromAvgAllIP.append(resultFromSampleAvgIP.item())
-            # data.resultFromEEAll.append(resultFromExpectation.item())
-            # data.resultFromAvgAllIB.append(data.resultFromSampleSumIB.item()/data.expectationDebugCounter)
-            # # print("resultFromSampleAvg " + str(resultFromSampleAvg.item()))
-            # ^^^ DEBUG EXPECTED VALUE
 
-
-
-            if self.stepValue > 3500 and self.stepValue < 3520:
-                print('Stop here!')
+            data[0].gapVal=20
 
             # \/\/\/ Big individual
             with pyro.plate("NCBG", data[0].NCBG) as ncbg:
-            # with pyro.plate("G", data.G) as g:
-                # selAge = pyro.sample("age", dist.Categorical(data.ageProb))
-                # selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
                 with pyro.plate("G", data[0].G) as g:
-                # with pyro.plate("NCBG", data.NCBG) as ncbg:
-                    # shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop[g]), torch.abs(data.beta_paramShop[g]), needsSh*groupProbs[g]*data.populationNum.repeat([data.G,1])))
-                    # schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool[g]), torch.abs(data.beta_paramSchool[g]), data.needsTensor[g][:, 1]*data.populationNum[ncbg]*groupProbs[g]))
-                    # religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion[g]), torch.abs(data.beta_paramReligion[g]), data.needsTensor[g][:, 2]*data.populationNum[ncbg]*groupProbs[g]))
-
                     shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh))
                     schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch))
                     religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel))
-
-                    # shopVisits=pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data.alpha_paramShop[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramShop[g].repeat([data.NCBG, 1]), 0, 1), 1900))
-                    # schoolVisits=pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data.alpha_paramSchool[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramSchool[g].repeat([data.NCBG, 1]), 0, 1), 1900))
-                    # religionVisits=pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data.alpha_paramReligion[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramReligion[g].repeat([data.NCBG, 1]), 0, 1), 1900))
 
             sumValShop=shopVisits.sum()
             sumValSchool=schoolVisits.sum()
             sumValRel=religionVisits.sum()
             # ^^^ Big individual
-
-
-            # shopVisits = ((shopVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # schoolVisits = ((schoolVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # religionVisits = ((religionVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # print(((shopVisits * (torch.transpose(data.occupationProb, 0, 1)).flatten()).sum(-1, False).mul(data.populationNum)).sum())
-            # print(((shopVisits * (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).flatten()).sum(-1, False).mul(data.populationNum)).sum())
-            # sumVal = 0
-            # for m in range(404):
-            #     temp = ((data.populationNum[m] * (torch.transpose(data.occupationProb, 0, 1)).flatten()) * shopVisits[m][:]).sum()
-            #     print(temp)
-            #     sumVal = sumVal + temp
-            # print(sumVal)
-            # shopVisits = (shopVisits * (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).flatten()).sum(-1, False).mul(data.populationNum)
-            # schoolVisits = (schoolVisits * (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).flatten()).sum(-1, False).mul(data.populationNum)
-            # religionVisits = (religionVisits * (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).flatten()).sum(-1, False).mul(data.populationNum)
-            #
-            # print(shopVisits.sum(-1, True))
-
-
-
-            # \/\/\/ Individual multipiled to population
-            # # with pyro.plate("NCBG", data.NCBG) as ncbg:
-            # with pyro.plate("G", data.G) as g:
-            #     # selAge = pyro.sample("age", dist.Categorical(data.ageProb))
-            #     # selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-            #     # with pyro.plate("G", data.G) as g:
-            #     with pyro.plate("NCBG", data.NCBG) as ncbg:
-            #         # print(data.needsTensor[g][:, 0])
-            #         # print(data.needsTensor[g][:, 1])
-            #         # print(data.needsTensor[g][:, 2])
-            #         shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop), torch.abs(data.beta_paramShop), data.needsTensor[:, 0]))
-            #         schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool), torch.abs(data.beta_paramSchool), data.needsTensor[:, 1]))
-            #         religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion), torch.abs(data.beta_paramReligion), data.needsTensor[:, 2]))
-            #
-            # # shopVisits = torch.zeros((data.G,data.NCBG))
-            # # schoolVisits = torch.zeros((data.G, data.NCBG))
-            # # religionVisits = torch.zeros((data.G, data.NCBG))
-            # # for g in range(data.G):
-            # #     for ncbg in range(data.NCBG):
-            # #         shopVisits[g, ncbg] = pyro.sample("Tu_Shop" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramShop[g]), torch.abs(data.beta_paramShop[g]), data.needsTensor[g, 0]))
-            # #         schoolVisits[g, ncbg] = pyro.sample("Tu_School" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramSchool[g]), torch.abs(data.beta_paramSchool[g]), data.needsTensor[g, 1]))
-            # #         religionVisits[g, ncbg] = pyro.sample("Tu_Religion" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramReligion[g]), torch.abs(data.beta_paramReligion[g]), data.needsTensor[g, 2]))
-            #
-            # # shopVisits = ((shopVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # # schoolVisits = ((schoolVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # # religionVisits = ((religionVisits * data.occupationProb.flatten()).sum(-1, False)).mul(data.populationNum)
-            # # print(((shopVisits * (torch.transpose(data.occupationProb, 0, 1)).flatten()).sum(-1, False).mul(data.populationNum)).sum())
-            # # print(((shopVisits * (torch.transpose(data.occupationProb, 0, 1) * data.ageProb).flatten()).sum(-1, False).mul(data.populationNum)).sum())
-            #
-            # # frac = data.populationNum[0] / (data.populationNum[0] * groupProbs).sum()
-            # groupCBGPop = groupProbs * data.populationNum.repeat([data.G, 1])
-            # sumValShop = (shopVisits * torch.transpose(groupCBGPop,0,1)).sum()
-            # sumValSchool = (schoolVisits * torch.transpose(groupCBGPop,0,1)).sum()
-            # sumValRel = (religionVisits * torch.transpose(groupCBGPop,0,1)).sum()
-            # ^^^ Individual multipiled to population
-
-            # # \/\/\/ MANUAL CALCULATION. SLOW
-            # sumValShop = 0
-            # sumValSchool = 0
-            # sumValRel = 0
-            # for m in range(404):
-            #     tempShop = (((data.populationNum[m]*frac) * (torch.transpose(data.occupationProb, 0, 1)).flatten()) * shopVisits[m][:]).sum()
-            #     tempSchool = (((data.populationNum[m] * frac) * (torch.transpose(data.occupationProb, 0, 1)).flatten()) * schoolVisits[m][:]).sum()
-            #     tempRel = (((data.populationNum[m] * frac) * (torch.transpose(data.occupationProb, 0, 1)).flatten()) * religionVisits[m][:]).sum()
-            #     # print(temp)
-            #     if not np.isnan(frac):
-            #         sumValShop = sumValShop + tempShop
-            #         sumValSchool = sumValSchool + tempSchool
-            #         sumValRel = sumValRel + tempRel
-            #         # print('!!!')
-            #     # sumVal=sumVal+temp
-            # # print(sumVal)
-            # # ^^^ MANUAL CALCULATION. SLOW
-
-            # shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(sumValShop), obs=torch.round(data.pOIs[0, 1]))
-            # schoolVisitsObs = pyro.sample("S_School", dist.Poisson(sumValSchool), obs=torch.round(data.pOIs[1, 1]))
-            # religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(sumValRel), obs=torch.round(data.pOIs[2, 1]))
 
             temp=[]
             for i in range(len(data)):
@@ -202,32 +83,18 @@ class Test():
             trainRelObs = torch.Tensor(temp)
 
             with pyro.plate('observe_data'):
-                shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), data[0].alpha_paramShop.repeat([data[0].NCBG, 1]) + data[0].beta_paramShop[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSh)), obs=trainShopObs)
-                schoolVisitsObs = pyro.sample("S_School", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]) + data[0].beta_paramSchool[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSch)), obs=trainSchoolObs)
-                religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]) + data[0].beta_paramReligion[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNRel)), obs=trainRelObs)
+                shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), data[0].alpha_paramShop.repeat([data[0].NCBG, 1]) + data[0].beta_paramShop[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSh)), obs=trainShopObs*data[0].gapVal)
+                schoolVisitsObs = pyro.sample("S_School", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]) + data[0].beta_paramSchool[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSch)), obs=trainSchoolObs*data[0].gapVal)
+                religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(torch.sum(torch.transpose(torch.div(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]) + data[0].beta_paramReligion[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNRel)), obs=trainRelObs*data[0].gapVal)
 
-            # obsRaw = np.transpose(data.pOIs.iloc[:][1])
-            # obs = torch.zeros(data.NE)
-            # for i in range(data.NE):
-            #     obs[i] = obsRaw.iloc[i]
-            #     obs[i] = torch.div(obs[i],100)
             for i in range(data[0].globalError.shape[0]):
                 if data[0].globalError[i] == 0:
                     shopAnalytical=torch.sum(torch.transpose(torch.div(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), data[0].alpha_paramShop.repeat([data[0].NCBG, 1]) + data[0].beta_paramShop[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSh)
                     schoolAnalytical = torch.sum(torch.transpose(torch.div(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]) + data[0].beta_paramSchool[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNSch)
                     religionAnalytical = torch.sum(torch.transpose(torch.div(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]) + data[0].beta_paramReligion[g].repeat([data[0].NCBG, 1])), 0, 1) * data[0].BBNRel)
-                    data[0].globalError[i] = torch.absolute(shopAnalytical - data[0].pOIs[0, 1]) + torch.absolute(schoolAnalytical - data[0].pOIs[1, 1]) + torch.absolute(religionAnalytical - data[0].pOIs[2, 1])
+                    data[0].globalError[i] = torch.absolute(shopAnalytical - data[0].pOIs[0, 1]*data[0].gapVal) + torch.absolute(schoolAnalytical - data[0].pOIs[1, 1]*data[0].gapVal) + torch.absolute(religionAnalytical - data[0].pOIs[2, 1]*data[0].gapVal)
                     # print("within errors {}".format(globalError[i]))
                     break
-
-            # if data[0].isFirst == True:
-            #     # obsRaw = np.transpose(data.pOIs.iloc[:][1])
-            #     # obs = torch.zeros(data.NE)
-            #     # for i in range(data.NE):
-            #     #     obs[i] = obsRaw.iloc[i]
-            #     #     obs[i] = torch.div(obs[i], 100)
-            #     print("within errors {}".format(globalError[0]))
-            #     data[0].isFirst = False
 
             return shopVisitsObs, schoolVisitsObs, religionVisitsObs
 
@@ -265,18 +132,7 @@ class Test():
             data[0].alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive)
             data[0].beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive)
 
-            # register prior parameter value. It'll be updated in the guide function
-            # data.alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            # data.beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
-            # data.alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            # data.beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
-            # data.alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data.G), 0.2), constraint=constraints.positive)
-            # data.beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data.G), 13.4), constraint=constraints.positive)
-
             groupProbs = (torch.transpose(data[0].occupationProb, 0, 1) * data[0].ageProb).reshape([data[0].G, 1])
-            # needsSh = data.needsTensor[:, 0].reshape([data.G,1])
-            # needsSch = data.needsTensor[:, 1].reshape([data.G, 1])
-            # needsRel = data.needsTensor[:, 2].reshape([data.G, 1])
             needsSh = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
             needsSch = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
             needsRel = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
@@ -291,35 +147,6 @@ class Test():
                     pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh))
                     pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch))
                     pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion[g].repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion[g].repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel))
-
-                    # pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data.alpha_paramShop[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramShop[g].repeat([data.NCBG, 1]), 0, 1), 1900))
-                    # pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data.alpha_paramSchool[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramSchool[g].repeat([data.NCBG, 1]), 0, 1), 1900))
-                    # pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data.alpha_paramReligion[g].repeat([data.NCBG, 1]), 0, 1), torch.transpose(data.beta_paramReligion[g].repeat([data.NCBG, 1]), 0, 1), 1900))
-
-            # \/\/\/ Individual multipiled to population
-            # # with pyro.plate("NCBG", data.NCBG) as ncbg:
-            # with pyro.plate("G", data.G) as g:
-            #     # selAge = pyro.sample("age", dist.Categorical(data.ageProb))
-            #     # selOccupation = pyro.sample("occupation", dist.Categorical(data.occupationProb[selAge[n], :]))
-            #     # with pyro.plate("G", data.G) as g:
-            #     with pyro.plate("NCBG", data.NCBG) as ncbg:
-            #         # print(data.needsTensor[g][:, 0])
-            #         # print(data.needsTensor[g][:, 1])
-            #         # print(data.needsTensor[g][:, 2])
-            #         pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(data.alpha_paramShop), torch.abs(data.beta_paramShop), data.needsTensor[:, 0]))
-            #         pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(data.alpha_paramSchool), torch.abs(data.beta_paramSchool), data.needsTensor[:, 1]))
-            #         pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(data.alpha_paramReligion), torch.abs(data.beta_paramReligion), data.needsTensor[:, 2]))
-            #
-            # # TOO SLOW
-            # # shopVisits = torch.zeros((data.G, data.NCBG))
-            # # schoolVisits = torch.zeros((data.G, data.NCBG))
-            # # religionVisits = torch.zeros((data.G, data.NCBG))
-            # # for g in range(data.G):
-            # #     for ncbg in range(data.NCBG):
-            # #         shopVisits[g, ncbg] = pyro.sample("Tu_Shop" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramShop[g]), torch.abs(data.beta_paramShop[g]), data.needsTensor[g, 0]))
-            # #         schoolVisits[g, ncbg] = pyro.sample("Tu_School" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramSchool[g]), torch.abs(data.beta_paramSchool[g]), data.needsTensor[g, 1]))
-            # #         religionVisits[g, ncbg] = pyro.sample("Tu_Religion" + str(g) + "_" + str(ncbg), dist.BetaBinomial(torch.abs(data.alpha_paramReligion[g]), torch.abs(data.beta_paramReligion[g]), data.needsTensor[g, 2]))
-            # ^^^ Individual multipiled to population
 
         # def makeTestConfig(test):
         #    jsonStr = json.dumps(test.__dict__)
@@ -387,7 +214,8 @@ class Test():
             print("Selected train date range {}".format(selectedTrainRangeIndices))
             print("Selected test date range {}".format(selectedTestRangeIndices))
 
-        allData = loadData(cities[selectedTrainCityIndex], cities[selectedTestCityIndex], dates, selectedTrainRangeIndices, selectedTestRangeIndices)
+        modelTypeIndex = 1
+        allData = loadData(cities[selectedTrainCityIndex], cities[selectedTestCityIndex], dates, selectedTrainRangeIndices, selectedTestRangeIndices, modelTypeIndex)
 
         needsVerbose = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data.csv')
 
@@ -401,7 +229,7 @@ class Test():
         # asgd_params = {"lr": lr, "maximize": False}
         # optimizer = ASGD(asgd_params)
 
-        adagrad_params = {"lr": lr, "maximize": False, "lr_decay":0.01}
+        adagrad_params = {"lr": lr, "maximize": False, "lr_decay":0.000001}
         optimizer = Adagrad(adagrad_params)
 
         # radam_params = {"lr": lr, "betas": (0.6, 0.9)}
@@ -461,7 +289,7 @@ class Test():
             loss = elbo.loss(model, guide, allData.trainData.monthlyData)
             logging.info("first loss train SantaFe = {}".format(loss))
 
-            n_steps = 100
+            n_steps = 500
             error_tolerance = 1
 
             losses = []
@@ -497,26 +325,6 @@ class Test():
             showAlphaBetaRange("CBG based simulation", allData.trainData.monthlyData[0], allData.trainData.monthlyData[0].alpha_paramShop, allData.trainData.monthlyData[0].beta_paramShop, needsVerbose)
 
 
-            # FOR DEBUGGING
-            # plt.plot(allData.trainData.monthlyData[0].resultFromAvgAllIP,label="numeric mean one indiv with small N multiplied to pop")
-            # plt.plot(allData.trainData.monthlyData[0].resultFromAvgAllIB, label="numeric mean one indiv with large N")
-            # plt.plot(allData.trainData.monthlyData[0].resultFromEEAll, label="expectation value")
-            # plt.legend()
-            # plt.title('Difference between numeric average and expectation for the case one person is made in CBG for a group and it is multiplied to the entire CBG population')
-            # plt.show()
-            #
-            # plt.figure()
-            # plt.plot(allData.trainData.monthlyData[0].resultSamplesIP)
-            # plt.title('Samples from individual map to population')
-            # plt.show()
-            #
-            # plt.figure()
-            # plt.plot(allData.trainData.monthlyData[0].resultSamplesIB)
-            # plt.title('Samples from big individual')
-            # plt.show()
-            # FOR DEBUGGING
-
-
             # print(os.path.dirname(__file__))
             now = datetime.now()
             dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
@@ -549,50 +357,16 @@ class Test():
                 value = pyro.param(name)
                 print("{} = {}".format(name, value.detach().cpu().numpy()))
 
-            # DataBundle.unloadDataToGPU(allData.trainData.monthlyData[0])
-            # DataBundle.loadDataToGPU(allData.testData.monthlyData[0])
-
-            # visits = pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
-            # population = 75000
-            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-            # allData = AllData(data)
-            #
-
             for i in range(len(allData.testData.monthlyData)):
                 allData.testData.monthlyData[i].globalError = np.zeros(numParticles, dtype=np.int32)
                 loss = elbo.loss(model, guide, [allData.testData.monthlyData[i]])
                 logging.info("final loss test Appleton = {}".format(loss))
                 logging.info("final error test Appleton = {}".format(allData.testData.monthlyData[i].globalError))
 
-            #
-            # visits = pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
-            # population = 107400
-            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-            # allData = AllData(data)
-            #
-            # loss = elbo.loss(model, guide, allData)
-            # logging.info("final loss test Green bay = {}".format(loss))
-            #
-            # visits = pd.read_csv('USA_NY_Richmond County_New York_FullSimple.csv', header=None)
-            # population = 8468000
-            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-            # allData = AllData(data)
-            #
-            # loss = elbo.loss(model, guide, allData)
-            # logging.info("final loss test New york city = {}".format(loss))
-            #
-            # visits = pd.read_csv('USA_WA_King County_Seattle_FullSimple.csv', header=None)
-            # population = 760000
-            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
-            # allData = AllData(data)
-            #
-            # loss = elbo.loss(model, guide, allData)
-            # logging.info("final loss test Seattle = {}".format(loss))
-            # print('^^^'+loss_path)
-            # print('^^^' + error_path)
             retVals.append([losses,maxErrors,loss_path,error_path])
 
 if __name__ ==  '__main__':
+    print("pyro version:", pyro.__version__)
     matplotlib.use("Qt5agg")
     numCPUs = 1
     numTests = 1
@@ -618,11 +392,9 @@ if __name__ ==  '__main__':
     for i in range(numTests):
         test = Test()
         tests.append(test)
-        # print('!!!123')
-        p = multiprocessing.Process(target=test.run,args=(5, 0.8, "RenyiELBO", 0.2,i,retVals))
+        p = multiprocessing.Process(target=test.run,args=(5, 4, "RenyiELBO", 0.2,i,retVals))
         p.start()
         processes.append(p)
-        # print('!!!')
 
     for i in range(numTests):
         print('!!!WAITING')
@@ -632,19 +404,12 @@ if __name__ ==  '__main__':
     dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
     plt.figure("loss fig")
     for i in range(len(retVals)):
-        # print('!123'+str(retVals[i][0]))
-        # print('!1234'+retVals[i][2] + '_' + dt_string + '_summary' + '.png')
         plt.plot(retVals[i][0])
     plt.savefig(retVals[0][2] + '_' + dt_string + '_summary' + '.png')
     plt.figure("error fig")
     for i in range(len(retVals)):
-        # print('!123'+str(retVals[i][1]))
-        # print('!1234'+retVals[i][3] + '_' + dt_string + '_summary' + '.png')
         plt.plot(retVals[i][1])
     plt.savefig(retVals[0][3] + '_' + dt_string + '_summary' + '.png')
 
     print('!!!')
-    # test1=Test()
-    # #test.run(numParticles=1,lr=0.001,elboType="RenyiELBO",alpha=0.2)
-    # p1 = multiprocessing.Process(target=test1.run(numParticles=1,lr=0.001,elboType="RenyiELBO",alpha=0.2))
 

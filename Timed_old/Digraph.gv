@@ -1,0 +1,24 @@
+digraph {
+	S_Shop [label=S_Shop fillcolor=grey shape=ellipse style=filled]
+	S_School [label=S_School fillcolor=grey shape=ellipse style=filled]
+	S_Religion [label=S_Religion fillcolor=grey shape=ellipse style=filled]
+	subgraph cluster_N {
+		label=N labeljust=r labelloc=b
+		age [label=age fillcolor=white shape=ellipse style=filled]
+		occupation [label=occupation fillcolor=white shape=ellipse style=filled]
+		Tu_Shop [label=Tu_Shop fillcolor=white shape=ellipse style=filled]
+		Tu_School [label=Tu_School fillcolor=white shape=ellipse style=filled]
+		Tu_Religion [label=Tu_Religion fillcolor=white shape=ellipse style=filled]
+	}
+	age -> occupation
+	occupation -> Tu_Shop
+	age -> Tu_Shop
+	occupation -> Tu_School
+	age -> Tu_School
+	occupation -> Tu_Religion
+	age -> Tu_Religion
+	Tu_Shop -> S_Shop
+	Tu_School -> S_School
+	Tu_Religion -> S_Religion
+	distribution_description_node [label="age ~ Categorical\loccupation ~ Categorical\lTu_Shop ~ BetaBinomial\lTu_School ~ BetaBinomial\lTu_Religion ~ BetaBinomial\lS_Shop ~ Poisson\lS_School ~ Poisson\lS_Religion ~ Poisson\l" shape=plaintext]
+}

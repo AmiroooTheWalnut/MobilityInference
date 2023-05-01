@@ -1,0 +1,577 @@
+#   This model assumes that each pair of age-occupation group has needs and one alpha and one beta. The alpha and beta determines how frequently
+# this group attends different POIs. This means that individuals can't compensate their attendance because the alpha and beta are shared for a group.
+# This model distinguished the type of visits and the POIs are distinguished.
+# - Individual level samples (latent variable)
+# - Age-Occupation level parameters
+# - POI distinguished visits
+
+import os
+import multiprocessing
+from multiprocessing import Queue
+from datetime import datetime
+import matplotlib
+import matplotlib.pyplot as plt
+import torch
+import torch.distributions.constraints as constraints
+import pyro
+import pyro.distributions as dist
+from pyro.infer.autoguide import AutoNormal, AutoDiscreteParallel
+from pyro.optim import Adam
+from pyro.infer import SVI, Trace_ELBO, TraceEnum_ELBO, TraceTailAdaptive_ELBO, RenyiELBO, TraceGraph_ELBO, TraceTMC_ELBO, TraceMeanField_ELBO
+import logging
+from torch.distributions import constraints
+from pyro.optim import ASGD
+from pyro.optim import Adagrad
+from pyro.optim import RAdam
+from pyro.optim import ExponentialLR
+from pyro.optim import Rprop
+from pyro.optim import AdamW
+from pyro.optim import Adadelta
+from pyro.optim import SGD
+from dataProcessing import *
+from kFoldCrossVal import *
+from VisualizeAlphaBeta import *
+
+class Test():
+
+    def __init__(self):
+        self.stepValue=0
+
+    def run(self,numParticles,lr,elboType,alpha,i,retVals):
+        # globalError = np.zeros(1, dtype=np.int32)
+        self.index=i
+
+        def model(data):
+            alpha_paramShop = torch.ones(data[0].G)
+            alpha_paramSchool = torch.ones(data[0].G)
+            alpha_paramReligion = torch.ones(data[0].G)
+            beta_paramShop = torch.ones(data[0].G)
+            beta_paramSchool = torch.ones(data[0].G)
+            beta_paramReligion = torch.ones(data[0].G)
+
+            with pyro.plate("N", data[0].N) as n:
+                selAge = pyro.sample("age", dist.Categorical(data[0].ageProb))
+                selOccupation = pyro.sample("occupation", dist.Categorical(data[0].occupationProb[selAge[n], :]))
+                with pyro.plate("Nshop", data[0].Nshop) as nshop:
+                    shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramShop[selAge[n]][selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+                with pyro.plate("Nschool", data[0].Nschool) as nschool:
+                    schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+                with pyro.plate("Nreligion", data[0].Nreligion) as nreligion:
+                    religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+
+            with pyro.plate("Nshop_prime", data[0].Nshop) as nshop:
+                shopVisitsPOIs = shopVisits.sum(1)
+                shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[0].pOIShopProb)
+                expectedSum = shopVisitsPOIs.sum()
+                newSum = shopVisitsPOIsAdjusted.sum()
+                diff = expectedSum - newSum
+                newSum = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0)))
+                shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(newSum).to_event(1), obs=data[0].pOIShops)
+            with pyro.plate("Nschool_prime", data[0].Nschool) as nschool:
+                schoolVisitsPOIs = schoolVisits.sum(1)
+                schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[0].pOISchoolProb)
+                expectedSum = schoolVisitsPOIs.sum()
+                newSum = schoolVisitsPOIsAdjusted.sum()
+                diff = expectedSum - newSum
+                newSum = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0)))
+                schoolVisitsObs = pyro.sample("S_School", dist.Poisson(newSum).to_event(1), obs=data[0].pOISchools)
+            with pyro.plate("Nreligion_prime", data[0].Nreligion) as nreligion:
+                religionVisitsPOIs = religionVisits.sum(1)
+                religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[0].pOIReligionProb)
+                expectedSum = religionVisitsPOIs.sum()
+                newSum = religionVisitsPOIsAdjusted.sum()
+                diff = expectedSum - newSum
+                newSum = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0)))
+                religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(newSum).to_event(1), obs=data[0].pOIReligion)
+
+            # obsRaw = np.transpose(data.pOIs.iloc[:][1])
+            # obs = torch.zeros(data.NE)
+            # for i in range(data.NE):
+            #     obs[i] = obsRaw.iloc[i]
+            #     obs[i] = torch.div(obs[i],100)
+            print(torch.mul(torch.abs(shopVisits.sum(1)), data[0].pOIShopProb).sum() - data[0].pOIShops.sum() + torch.mul(torch.abs(schoolVisits.sum(1)), data[0].pOISchoolProb).sum() - data[0].pOISchools.sum() + torch.mul(torch.abs(religionVisits.sum(1)), data[0].pOIReligionProb).sum() - data[0].pOIReligion.sum())
+
+            if data[0].isFirst == True:
+                # obsRaw = np.transpose(data.pOIs.iloc[:][1])
+                # obs = torch.zeros(data.NE)
+                # for i in range(data.NE):
+                #     obs[i] = obsRaw.iloc[i]
+                #     obs[i] = torch.div(obs[i], 100)
+                print(
+                    torch.mul(torch.abs(shopVisits.sum(1)), data[0].pOIShopProb).sum() - data[0].pOIShops.sum() + torch.mul(torch.abs(schoolVisits.sum(1)), data[0].pOISchoolProb).sum() - data[0].pOISchools.sum() + torch.mul(torch.abs(religionVisits.sum(1)), data[0].pOIReligionProb).sum() - data[0].pOIReligion.sum())
+                data[0].isFirst = False
+
+            return shopVisitsObs, schoolVisitsObs, religionVisitsObs
+        def guide(data):
+
+            # register prior parameter value. It'll be updated in the guide function
+            alpha_paramShop = pyro.param("alpha_paramShop_G", torch.add(torch.zeros(data[0].G), 0.3), constraint=constraints.positive)
+            beta_paramShop = pyro.param("beta_paramShop_G", torch.add(torch.ones(data[0].G), 9), constraint=constraints.positive)
+            alpha_paramSchool = pyro.param("alpha_paramSchool_G", torch.add(torch.zeros(data[0].G), 0.3), constraint=constraints.positive)
+            beta_paramSchool = pyro.param("beta_paramSchool_G", torch.add(torch.ones(data[0].G), 9), constraint=constraints.positive)
+            alpha_paramReligion = pyro.param("alpha_paramReligion_G", torch.add(torch.zeros(data[0].G), 0.3), constraint=constraints.positive)
+            beta_paramReligion = pyro.param("beta_paramReligion_G", torch.add(torch.ones(data[0].G), 9), constraint=constraints.positive)
+
+            with pyro.plate("N", data[0].N) as n:
+                selAge = pyro.sample("age", dist.Categorical(data[0].ageProb))
+                selOccupation = pyro.sample("occupation", dist.Categorical(data[0].occupationProb[selAge[n], :]))
+                with pyro.plate("Nshop", data[0].Nshop) as nshop:
+                    pyro.sample("Tu_Shop", dist.BetaBinomial(torch.abs(alpha_paramShop[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramShop[selAge[n]][selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 0]))
+                with pyro.plate("Nschool", data[0].Nschool) as nschool:
+                    pyro.sample("Tu_School", dist.BetaBinomial(torch.abs(alpha_paramSchool[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramSchool[selAge[n] * 5 + selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 1]))
+                with pyro.plate("Nreligion", data[0].Nreligion) as nreligion:
+                    pyro.sample("Tu_Religion", dist.BetaBinomial(torch.abs(alpha_paramReligion[selAge[n] * 5 + selOccupation[n]]), torch.abs(beta_paramReligion[selAge[n] * 5 + selOccupation[n]]), data[0].needsTensor[selAge[n] * 5 + selOccupation[n]][:, 2]))
+
+        pyro.clear_param_store()
+
+        logging.basicConfig(format="%(relativeCreated) 9d %(message)s", level=logging.INFO)
+
+        isReadConfigFile = True  # IF FALSE, MANUAL SELECTION IS ON
+        isKFoldCrossVal = True
+        configFileName = 'tucson_test1.conf'
+        # I'LL ADD CONFIGURATION FILES TO AVOID RAPIDLY INPUTTING CITY AND MONTH
+        if isReadConfigFile == True:
+            file = open('tucson_test1.conf', 'r')
+
+            configStr = file.read()
+            retConfig = json.loads(configStr, object_hook=customConfigDecoder)
+
+        cities = os.listdir('..' + os.sep + 'TimedData')
+
+        for i in range(len(cities)):
+            print("[{}] {}".format(i + 1, cities[i]))
+
+        if isReadConfigFile == False:
+            selectedTrainCity = input("Select train city")
+            selectedTrainCityIndex = int(selectedTrainCity) - 1
+            selectedTestCity = input("Select test city")
+            selectedTestCityIndex = int(selectedTestCity) - 1
+        else:
+            selectedTrainCityIndex = retConfig.trainCityIndex
+            print("City [{}] selected".format(selectedTrainCityIndex))
+            selectedTestCityIndex = retConfig.testCityIndex
+            print("City [{}] selected".format(selectedTestCityIndex))
+
+        times = os.listdir('..' + os.sep + 'TimedData' + os.sep + cities[selectedTrainCityIndex])
+        dates = set()
+        for i in range(len(times)):
+            noExtension = times[i].split(".")
+            parts = noExtension[0].split("_")
+            dates.add(parts[len(parts) - 1 - 1] + "_" + parts[len(parts) - 1])
+
+        print("Available dates")
+        dates = sorted(dates)
+        for i in range(len(dates)):
+            print("[{}] {}".format(i + 1, dates[i]))
+
+        if isReadConfigFile == False:
+            selectedTrainRange = input("Select train range (, and - ranges max two digits i.e. 1,3-5,21: 1,3,4,5,21)")
+            selectedTestRange = input("Select test range (, and - ranges max two digits i.e. 1,3-5,21: 1,3,4,5,21)")
+
+            selectedTrainRangeIndices = processInputRanges(selectedTrainRange)
+            selectedTestRangeIndices = processInputRanges(selectedTestRange)
+
+            print(selectedTrainRangeIndices)
+            print(selectedTestRangeIndices)
+        else:
+            selectedTrainRangeIndices = retConfig.trainTimeRange
+            selectedTestRangeIndices = retConfig.testTimeRange
+            print("Selected train date range {}".format(selectedTrainRangeIndices))
+            print("Selected test date range {}".format(selectedTestRangeIndices))
+
+        allData = loadData(cities[selectedTrainCityIndex], cities[selectedTestCityIndex], dates, selectedTrainRangeIndices, selectedTestRangeIndices)
+
+        needsVerbose = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data.csv')
+
+        # graph = pyro.render_model(model, model_args=(allData.trainData.monthlyData[0],), render_distributions=True, render_params=True)
+        # graph.view()
+
+        # setup the optimizer
+        # adam_params = {"lr": lr, "betas": (0.9, 0.999), "maximize": False}
+        # optimizer = Adam(adam_params)
+
+        # asgd_params = {"lr": lr, "maximize": False}
+        # optimizer = ASGD(asgd_params)
+
+        adagrad_params = {"lr": lr, "maximize": False, "lr_decay": 0.01}
+        optimizer = Adagrad(adagrad_params)
+
+        # radam_params = {"lr": lr, "betas": (0.6, 0.9)}
+        # optimizer = RAdam(radam_params)
+
+        # exponentialLR_params = {"gamma ": 0.01}
+        # optimizer = ExponentialLR(exponentialLR_params)
+
+        # rprop_params = {}
+        # optimizer = Rprop(rprop_params)
+
+        # adamW_params = {"lr": lr, "betas": (0.8, 0.9), "maximize": False, "weight_decay": 0.01}
+        # optimizer = AdamW(adamW_params)
+
+        # adadelta_params = {}
+        # optimizer = Adadelta(adadelta_params)
+
+        # sgd_params = {"lr": lr}
+        # optimizer = SGD(sgd_params)
+
+        # auto_guide = AutoDiscreteParallel(model)
+
+        if elboType == 'Trace_ELBO':
+            Elbo = Trace_ELBO
+            elbo = Elbo(num_particles=numParticles)
+
+        # Elbo = TraceTailAdaptive_ELBO
+        # elbo = Elbo(num_particles=5, vectorize_particles=True)
+
+        # Elbo = TraceGraph_ELBO
+        # elbo = Elbo(num_particles=5)
+
+        if elboType == 'RenyiELBO':
+            Elbo = RenyiELBO
+            elbo = Elbo(alpha=alpha, num_particles=numParticles)
+
+        # Elbo = TraceMeanField_ELBO
+        # elbo = Elbo(num_particles=5)
+
+        # Elbo = TraceTMC_ELBO
+        # elbo = Elbo(num_particles=5)
+
+        # setup the inference algorithm
+        svi = SVI(model, guide, optimizer, loss=elbo)
+        allData.trainData.monthlyData[0].globalError = np.zeros(numParticles, dtype=np.int32)
+
+        # svi.num_chains=1
+
+        if elboType == 'RenyiELBO':
+            extraMessage = elboType + "_alpha" + str(alpha) + "_numParticle" + str(numParticles) + "_lr" + str(lr)
+        else:
+            extraMessage = elboType + "_numParticle" + str(numParticles) + "_lr" + str(lr)
+
+        if retConfig.isKFoldCrossVal == 1:
+            runCrossVal(svi, elbo, model, guide, allData.testData.monthlyData, numParticles, dates, cities[selectedTestCityIndex])
+        else:
+            loss = elbo.loss(model, guide, allData.trainData.monthlyData)
+            logging.info("first loss train SantaFe = {}".format(loss))
+
+            n_steps = 100
+            error_tolerance = 1
+
+            losses = []
+            maxErrors = []
+
+            plt.figure("loss fig online")
+
+            # do gradient steps
+            for step in range(n_steps):
+                self.stepValue = step
+                loss = svi.step(allData.trainData.monthlyData)
+                maxError = np.max(np.absolute(allData.trainData.monthlyData[0].globalError))
+                losses.append(loss)
+                maxErrors.append(maxError)
+
+                plt.cla()
+                plt.plot(maxErrors[-50:])
+                plt.pause(0.01)
+
+                # print("maxError {}".format(maxError))
+                allData.trainData.monthlyData[0].globalError = np.zeros(numParticles, dtype=np.int32)
+                # svi.run()
+                if step % 100 == 0:
+                    logging.info("{: >5d}\t{}".format(step, loss))
+                    print("maxError {}".format(maxError))
+                    # print('.', end='')
+                    # for name in pyro.get_param_store():
+                    #     value = pyro.param(name)
+                    #     print("{} = {}".format(name, value.detach().cpu().numpy()))
+                # if maxError <= error_tolerance:
+                #     break
+
+            showAlphaBetaRange("CBG based simulation", allData.trainData.monthlyData[0], allData.trainData.monthlyData[0].alpha_paramShop, allData.trainData.monthlyData[0].beta_paramShop, needsVerbose)
+
+            # FOR DEBUGGING
+            # plt.plot(allData.trainData.monthlyData[0].resultFromAvgAllIP,label="numeric mean one indiv with small N multiplied to pop")
+            # plt.plot(allData.trainData.monthlyData[0].resultFromAvgAllIB, label="numeric mean one indiv with large N")
+            # plt.plot(allData.trainData.monthlyData[0].resultFromEEAll, label="expectation value")
+            # plt.legend()
+            # plt.title('Difference between numeric average and expectation for the case one person is made in CBG for a group and it is multiplied to the entire CBG population')
+            # plt.show()
+            #
+            # plt.figure()
+            # plt.plot(allData.trainData.monthlyData[0].resultSamplesIP)
+            # plt.title('Samples from individual map to population')
+            # plt.show()
+            #
+            # plt.figure()
+            # plt.plot(allData.trainData.monthlyData[0].resultSamplesIB)
+            # plt.title('Samples from big individual')
+            # plt.show()
+            # FOR DEBUGGING
+
+            # print(os.path.dirname(__file__))
+            now = datetime.now()
+            dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
+            plt.figure("loss fig")
+            plt.plot(losses)
+            plt.savefig(os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'loss_' + dt_string + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage + '.png')
+            loss_path = os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'loss_' + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage
+            plt.figure("error fig")
+            plt.plot(maxErrors)
+            plt.savefig(os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'error_' + dt_string + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage + '.png')
+            error_path = os.path.dirname(__file__) + os.sep + 'tests' + os.sep + 'error_' + '_' + cities[selectedTrainCityIndex] + '_' + extraMessage
+
+            with open('tests' + os.sep + 'losses_M1CBG_{}_{}_{}.csv'.format(dt_string, cities[selectedTrainCityIndex], extraMessage), 'w', encoding='UTF8', newline='') as f:
+                writer = csv.writer(f)
+                for i in range(len(losses)):
+                    writer.writerow([losses[i]])
+            with open('tests' + os.sep + 'errors_M1CBG_{}_{}_{}.csv'.format(dt_string, cities[selectedTrainCityIndex], extraMessage), 'w', encoding='UTF8', newline='') as f:
+                writer = csv.writer(f)
+                for i in range(len(maxErrors)):
+                    writer.writerow([maxErrors[i]])
+
+            print("Final evalulation")
+
+            # allDataTrain = loadData(cities[selectedTrainCityIndex], dates, times[selectedTrainRangeIndices])
+            allData.trainData.monthlyData[0].isFirst = True
+            loss = elbo.loss(model, guide, allData.trainData.monthlyData)
+            logging.info("final loss train Tucson = {}".format(loss))
+
+            for name in pyro.get_param_store():
+                value = pyro.param(name)
+                print("{} = {}".format(name, value.detach().cpu().numpy()))
+
+            # DataBundle.unloadDataToGPU(allData.trainData.monthlyData[0])
+            # DataBundle.loadDataToGPU(allData.testData.monthlyData[0])
+
+            # visits = pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
+            # population = 75000
+            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+            # allData = AllData(data)
+            #
+
+            for i in range(len(allData.testData.monthlyData)):
+                allData.testData.monthlyData[i].globalError = np.zeros(numParticles, dtype=np.int32)
+                loss = elbo.loss(model, guide, [allData.testData.monthlyData[i]])
+                logging.info("final loss test Appleton = {}".format(loss))
+                logging.info("final error test Appleton = {}".format(allData.testData.monthlyData[i].globalError))
+
+            #
+            # visits = pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
+            # population = 107400
+            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+            # allData = AllData(data)
+            #
+            # loss = elbo.loss(model, guide, allData)
+            # logging.info("final loss test Green bay = {}".format(loss))
+            #
+            # visits = pd.read_csv('USA_NY_Richmond County_New York_FullSimple.csv', header=None)
+            # population = 8468000
+            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+            # allData = AllData(data)
+            #
+            # loss = elbo.loss(model, guide, allData)
+            # logging.info("final loss test New york city = {}".format(loss))
+            #
+            # visits = pd.read_csv('USA_WA_King County_Seattle_FullSimple.csv', header=None)
+            # population = 760000
+            # data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb]
+            # allData = AllData(data)
+            #
+            # loss = elbo.loss(model, guide, allData)
+            # logging.info("final loss test Seattle = {}".format(loss))
+            # print('^^^'+loss_path)
+            # print('^^^' + error_path)
+            retVals.append([losses, maxErrors, loss_path, error_path])
+
+if __name__ ==  '__main__':
+    matplotlib.use("Qt5agg")
+    numCPUs = 1
+    numTests = 1
+    manager = multiprocessing.Manager()
+    retVals = manager.list()
+
+    # retVals = []
+    p_losses = []
+    p_maxErrors = []
+    tests = []
+    processes = []
+    pool = multiprocessing.Pool(processes=numCPUs)
+
+    # for i in range(numTests):
+    #     test = Test()
+    #     tests.append(test)
+    #     # p = multiprocessing.Process(target=test.run, args=(3, 0.001, "RenyiELBO", 0.2, i, retVals))
+    #     test.run(3, 0.001, "RenyiELBO", 0.2, i, retVals)
+    #     # p.start()
+    #     # processes.append(p)
+    #     print('RUN: '+str(i))
+
+    for i in range(numTests):
+        test = Test()
+        tests.append(test)
+        # print('!!!123')
+        p = multiprocessing.Process(target=test.run,args=(5, 0.8, "RenyiELBO", 0.2,i,retVals))
+        p.start()
+        processes.append(p)
+        # print('!!!')
+
+    for i in range(numTests):
+        print('!!!WAITING')
+        processes[i].join()
+
+    now = datetime.now()
+    dt_string = now.strftime("%Y_%m_%d_%H_%M_%S")
+    plt.figure("loss fig")
+    for i in range(len(retVals)):
+        # print('!123'+str(retVals[i][0]))
+        # print('!1234'+retVals[i][2] + '_' + dt_string + '_summary' + '.png')
+        plt.plot(retVals[i][0])
+    plt.savefig(retVals[0][2] + '_' + dt_string + '_summary' + '.png')
+    plt.figure("error fig")
+    for i in range(len(retVals)):
+        # print('!123'+str(retVals[i][1]))
+        # print('!1234'+retVals[i][3] + '_' + dt_string + '_summary' + '.png')
+        plt.plot(retVals[i][1])
+    plt.savefig(retVals[0][3] + '_' + dt_string + '_summary' + '.png')
+
+    print('!!!')
+    # test1=Test()
+    # #test.run(numParticles=1,lr=0.001,elboType="RenyiELBO",alpha=0.2)
+    # p1 = multiprocessing.Process(target=test1.run(numParticles=1,lr=0.001,elboType="RenyiELBO",alpha=0.2))
+
+
+
+# logging.basicConfig(format="%(relativeCreated) 9d %(message)s", level=logging.INFO)
+#
+# visits=pd.read_csv('USA_NM_Santa Fe County_Santa Fe_FullSimple.csv', header=None)
+# pOIShops=pd.read_csv('USA_NM_Santa Fe County_Santa Fe_shopLocVis.csv', header=None)
+# pOISchools=pd.read_csv('USA_NM_Santa Fe County_Santa Fe_schoolLocVis.csv', header=None)
+# pOIReligion=pd.read_csv('USA_NM_Santa Fe County_Santa Fe_religionLocVis.csv', header=None)
+# needs=pd.read_csv('Needs_data_numbers.csv', header=None)
+# population=84000
+#
+# isFirst=True
+#
+# pOIShopsProb=pd.DataFrame(np.zeros(pOIShops.shape[0]))
+# pOISchoolsProb=pd.DataFrame(np.zeros(pOISchools.shape[0]))
+# pOIReligionProb=pd.DataFrame(np.zeros(pOIReligion.shape[0]))
+# sShop=pOIShops.iloc[:,1].sum()
+# for i in range(pOIShops.shape[0]):
+#     pOIShopsProb.at[i,0]=pOIShops.iloc[i,1]/sShop
+# sSch=pOISchools.iloc[:,1].sum()
+# for i in range(pOISchools.shape[0]):
+#     pOISchoolsProb.at[i,0]=pOISchools.iloc[i,1]/sSch
+# sRel=pOIReligion.iloc[:,1].sum()
+# for i in range(pOIReligion.shape[0]):
+#     pOIReligionProb.at[i,0]=pOIReligion.iloc[i,1]/sRel
+#
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+#
+# graph=pyro.render_model(model, model_args=(allData,), render_distributions=True, render_params=True)
+# graph.view()
+#
+# # setup the optimizer
+# adam_params = {"lr": 0.01, "betas": (0.9, 0.999), "maximize": False}
+# optimizer = Adam(adam_params)
+#
+# # asgd_params = {"lr": 0.00001, "maximize": False}
+# # optimizer = ASGD(asgd_params)
+#
+# # adagrad_params = {"lr": 0.0001, "maximize": False}
+# # optimizer = Adagrad(adagrad_params)
+#
+# # radam_params = {"lr": 0.01, "betas": (0.6, 0.9)}
+# # optimizer = RAdam(radam_params)
+#
+# # exponentialLR_params = {"gamma ": 0.01}
+# # optimizer = ExponentialLR(exponentialLR_params)
+#
+# # rprop_params = {}
+# # optimizer = Rprop(rprop_params)
+#
+# # adamW_params = {}
+# # optimizer = AdamW(adamW_params)
+#
+# # adadelta_params = {}
+# # optimizer = Adadelta(adadelta_params)
+#
+# # auto_guide = AutoDiscreteParallel(model)
+#
+# # Elbo=Trace_ELBO
+# # elbo = Elbo(num_particles=5)
+#
+# # Elbo = TraceTailAdaptive_ELBO
+# # elbo = Elbo(num_particles=5, vectorize_particles=True)
+#
+# # Elbo = TraceGraph_ELBO
+# # elbo = Elbo(num_particles=5)
+#
+# Elbo = RenyiELBO
+# elbo = Elbo(alpha=0.1,num_particles=5)
+#
+# # Elbo = TraceMeanField_ELBO
+# # elbo = Elbo(num_particles=5)
+#
+# # Elbo = TraceTMC_ELBO
+# # elbo = Elbo(num_particles=5)
+#
+# # setup the inference algorithm
+# svi = SVI(model, guide, optimizer, loss=elbo)
+#
+# # svi.num_chains=1
+#
+# loss = elbo.loss(model, guide, allData)
+# logging.info("first loss train SantaFe = {}".format(loss))
+#
+# n_steps=10000
+#
+# # do gradient steps
+# for step in range(n_steps):
+#     loss=svi.step(allData)
+#     if step % 10 == 0:
+#         logging.info("{: >5d}\t{}".format(step, loss))
+#         #print('.', end='')
+#         # for name in pyro.get_param_store():
+#         #     value = pyro.param(name)
+#         #     print("{} = {}".format(name, value.detach().cpu().numpy()))
+# print("Final evalulation")
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+# loss = elbo.loss(model, guide, allData)
+# logging.info("final loss train SantaFe = {}".format(loss))
+#
+# for name in pyro.get_param_store():
+#     value = pyro.param(name)
+#     print("{} = {}".format(name, value.detach().cpu().numpy()))
+#
+# visits=pd.read_csv('USA_WI_Outagamie County_Appleton_FullSimple.csv', header=None)
+# population=75000
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+#
+# loss = elbo.loss(model, guide, allData)
+# logging.info("final loss test Appleton = {}".format(loss))
+#
+# visits=pd.read_csv('USA_WI_Brown County_Green Bay_FullSimple.csv', header=None)
+# population=107400
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+#
+# loss = elbo.loss(model, guide, allData)
+# logging.info("final loss test Green bay = {}".format(loss))
+#
+# visits=pd.read_csv('USA_NY_Richmond County_New York_FullSimple.csv', header=None)
+# population=8468000
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+#
+# loss = elbo.loss(model, guide, allData)
+# logging.info("final loss test New york city = {}".format(loss))
+#
+# visits=pd.read_csv('USA_WA_King County_Seattle_FullSimple.csv', header=None)
+# population=760000
+# data=[visits,needs,population,isFirst,pOIShops,pOISchools,pOIReligion,pOIShopsProb,pOISchoolsProb,pOIReligionProb]
+# allData=AllData(data)
+#
+# loss = elbo.loss(model, guide, allData)
+# logging.info("final loss test Seattle = {}".format(loss))

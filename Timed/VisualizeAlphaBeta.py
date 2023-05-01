@@ -6,22 +6,25 @@ import matplotlib
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import plotly.figure_factory as ff
+from plotly.subplots import make_subplots
 import torch
 import torch.distributions.constraints as constraints
 import pyro
 
-def showAlphaBetaRange(type,data,alpha,beta,needsVerbose):
-    fig = go.Figure()
+def showAlphaBetaRange(type,data,needsVerbose):
+    fig = make_subplots(rows=3, cols=1)
+    # fig = go.Figure()
 
     ageOccupation=[]
     for i in range(data.occupationProb.shape[1]):
         for j in range(data.occupationProb.shape[0]):
             ageOccupation.append(needsVerbose["age range"][i+j*data.occupationProb.shape[1]]+needsVerbose["Occupation"][i])
     # ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
-    thresh = torch.div(alpha, alpha + beta)
+    thresh = torch.div(data.alpha_paramShop, data.alpha_paramShop + data.beta_paramShop)
     if type == 'CBG based simulation':
         avgCPU=(data.BBNSh.sum(-1) / data.BBNSh.shape[1]).cpu()
-        thresh=torch.mul(thresh, avgCPU)
+        avgCPU=avgCPU/data.gapParam.cpu()
+        thresh=torch.mul(thresh.cpu(), avgCPU)
         xLim=data.BBNSh.sum(-1)/data.BBNSh.shape[1]
         xLim=xLim.tolist()
     else:
@@ -36,7 +39,7 @@ def showAlphaBetaRange(type,data,alpha,beta,needsVerbose):
             y=[ageOccupation[i], ageOccupation[i]],
             orientation='h',
             line=dict(color='rgb(244,165,130)', width=8),
-        ))
+        ),row=1, col=1)
 
     fig.add_trace(go.Scatter(
         x=thresh,
@@ -45,60 +48,95 @@ def showAlphaBetaRange(type,data,alpha,beta,needsVerbose):
         mode='markers+text',
         text=threshStr,
         textposition='middle left',
-        name='alpha/(alpha+beta)'))
+        name='alpha/(alpha+beta)'),row=1, col=1)
+
+    fig.update_layout(title=type, showlegend=False)
+
+    # fig.show()
+
+    # fig = go.Figure()
+
+    ageOccupation = []
+    for i in range(data.occupationProb.shape[1]):
+        for j in range(data.occupationProb.shape[0]):
+            ageOccupation.append(
+                needsVerbose["age range"][i + j * data.occupationProb.shape[1]] + needsVerbose["Occupation"][i])
+    # ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
+    thresh = torch.div(data.alpha_paramSchool, data.alpha_paramSchool + data.beta_paramSchool)
+    if type == 'CBG based simulation':
+        avgCPU = (data.BBNSch.sum(-1) / data.BBNSch.shape[1]).cpu()
+        avgCPU = avgCPU / data.gapParam.cpu()
+        thresh = torch.mul(thresh.cpu(), avgCPU)
+        xLim = data.BBNSch.sum(-1) / data.BBNSch.shape[1]
+        xLim = xLim.tolist()
+    else:
+        xLim = needsVerbose['Education services']
+    thresh = thresh.tolist()
+
+    threshStr = [str(s) for s in thresh]
+
+    for i in range(len(needsVerbose)):
+        fig.add_trace(go.Scatter(
+            x=[0, xLim[i]],
+            y=[ageOccupation[i], ageOccupation[i]],
+            orientation='h',
+            line=dict(color='rgb(244,165,130)', width=8),
+        ),row=2, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=thresh,
+        y=ageOccupation,
+        marker=dict(color='#CC5700', size=14),
+        mode='markers+text',
+        text=threshStr,
+        textposition='middle left',
+        name='alpha/(alpha+beta)'),row=2, col=1)
+
+    fig.update_layout(title=type, showlegend=False)
+
+    # fig.show()
+
+    # fig = go.Figure()
+
+    ageOccupation = []
+    for i in range(data.occupationProb.shape[1]):
+        for j in range(data.occupationProb.shape[0]):
+            ageOccupation.append(
+                needsVerbose["age range"][i + j * data.occupationProb.shape[1]] + needsVerbose["Occupation"][i])
+    # ageOccupation=[''.join(i) for i in zip(needsVerbose["age range"].map(str),needsVerbose["Occupation"])]
+    thresh = torch.div(data.alpha_paramReligion, data.alpha_paramReligion + data.beta_paramReligion)
+    if type == 'CBG based simulation':
+        avgCPU = (data.BBNRel.sum(-1) / data.BBNRel.shape[1]).cpu()
+        avgCPU = avgCPU / data.gapParam.cpu()
+        thresh = torch.mul(thresh.cpu(), avgCPU)
+        xLim = data.BBNRel.sum(-1) / data.BBNRel.shape[1]
+        xLim = xLim.tolist()
+    else:
+        xLim = needsVerbose['Religious services']
+    thresh = thresh.tolist()
+
+    threshStr = [str(s) for s in thresh]
+
+    for i in range(len(needsVerbose)):
+        fig.add_trace(go.Scatter(
+            x=[0, xLim[i]],
+            y=[ageOccupation[i], ageOccupation[i]],
+            orientation='h',
+            line=dict(color='rgb(244,165,130)', width=8),
+        ),row=3, col=1)
+
+    fig.add_trace(go.Scatter(
+        x=thresh,
+        y=ageOccupation,
+        marker=dict(color='#CC5700', size=14),
+        mode='markers+text',
+        text=threshStr,
+        textposition='middle left',
+        name='alpha/(alpha+beta)'),row=3, col=1)
 
     fig.update_layout(title=type, showlegend=False)
 
     fig.show()
 
-    print("!!!")
 
-    # data = '''
-    #  Grade Women Men
-    # 0 "Less Than 9th Grade" 21 34
-    # 1 "9th 12th(no degree)" 22 37
-    # 2 "Hight School" 29 47
-    # 3 "Some college, no degree" 35 53
-    # 4 "Associate Degree" 38 56
-    # 5 "Bachelor's Degree" 54 84
-    # 6 "Master's Degree" 69 99
-    # 7 "Doctorate Degree" 91 151
-    # '''
-    #
-    # df = pd.read_csv(io.StringIO(data), sep='\s+')
-    # df.sort_values('Men', ascending=False, inplace=True, ignore_index=True)
-    #
-    # w_lbl = [str(s) for s in df['Women'].tolist()]
-    # m_lbl = [str(s) for s in df['Men'].tolist()]
-    #
-    # fig = go.Figure()
-    #
-    # for i in range(0, 8):
-    #     fig.add_trace(go.Scatter(
-    #         x=[df['Women'][i], df['Men'][i]],
-    #         y=[df['Grade'][i], df['Grade'][i]],
-    #         orientation='h',
-    #         line=dict(color='rgb(244,165,130)', width=8),
-    #     ))
-    #
-    # fig.add_trace(go.Scatter(
-    #     x=df['Women'],
-    #     y=df['Grade'],
-    #     marker=dict(color='#CC5700', size=14),
-    #     mode='markers+text',
-    #     text=w_lbl,
-    #     textposition='middle left',
-    #     name='Woman'))
-    #
-    # fig.add_trace(go.Scatter(
-    #     x=df['Men'],
-    #     y=df['Grade'],
-    #     marker=dict(color='#227266', size=14),
-    #     mode='markers+text',
-    #     text=m_lbl,
-    #     textposition='middle right',
-    #     name='Men'))
-    #
-    # fig.update_layout(title="Sample plotly", showlegend=False)
-    #
-    # fig.show()
+    print("!!!")

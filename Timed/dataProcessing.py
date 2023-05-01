@@ -55,6 +55,7 @@ class DataBundle:
         # data.occupationCategories.cuda()
         # data.needCategories.cuda()
         data.ageProb=data.ageProb.cuda()  # age0: 0-18, age1: 18-65, age2: 65+
+        data.needsTensor=data.needsTensor.cuda()
         # data.ageProb.cuda()
         data.occupationProb=data.occupationProb.cuda() # occupation0: student, occupation1: service, occupation2: driver, occupation3: education, occupation4: unemployed
 
@@ -82,6 +83,8 @@ class DataBundle:
         # self.BBNSh=0
         # self.BBNSch=0
         # self.BBNRel=0
+
+        data.gapVal=data.gapVal.cuda()
 
         # data.globalError.cuda()
 
@@ -134,6 +137,15 @@ class MonthData:
         self.pOIShopProb = torch.tensor(data[7].values).flatten()
         self.pOISchoolProb = torch.tensor(data[8].values).flatten()
         self.pOIReligionProb = torch.tensor(data[9].values).flatten()
+
+        self.shopFrac = torch.tensor(data[12][0].values)
+        self.schoolFrac = torch.tensor(data[12][1].values)
+        self.relFrac = torch.tensor(data[12][2].values)
+
+        self.cBGShopProb = torch.tensor(data[13].transpose().values).cuda()
+        self.cBGSchoolProb = torch.tensor(data[14].transpose().values).cuda()
+        self.cBGReligionProb = torch.tensor(data[15].transpose().values).cuda()
+
         self.ageCategories = 3
         self.occupationCategories = 5
         self.needCategories = 3
@@ -169,8 +181,16 @@ class MonthData:
         self.M = 1  # months
         self.NE = 3  # needs
         self.G = 15  # age/occupation groups
+
+        self.oneAuxVal = torch.ones(self.G).cuda()
+
         #self.needsTensor = torch.tensor(self.needs.values).div(4).ceil()
         self.needsTensor = torch.tensor(self.needs.values)
+
+        self.nonZeroNeedsShopIndices = self.needsTensor[:, 0].nonzero().flatten().cuda()
+        self.nonZeroNeedsSchoolIndices = self.needsTensor[:, 1].nonzero().flatten().cuda()
+        self.nonZeroNeedsRelIndices = self.needsTensor[:, 2].nonzero().flatten().cuda()
+
         self.isFirst = data[3]
         self.alpha_paramShop = torch.ones(self.G)
         self.alpha_paramSchool = torch.ones(self.G)
@@ -186,19 +206,20 @@ class MonthData:
         # self.BBNSch=0
         # self.BBNRel=0
 
-        self.globalError = np.zeros(1, dtype=np.int32)
+        self.globalError = np.zeros(1, dtype=np.float32)
+        self.globalErrorFrac = np.zeros(1, dtype=np.float32)
 
         # RELATED TO CBG MODELING
         if data[11] == 1:
             self.groupProbs = (torch.transpose(self.occupationProb, 0, 1) * self.ageProb).reshape([self.G, 1])
             self.needsSh = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
-            self.needsSch = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
-            self.needsRel = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsSch = self.needsTensor[:, 1].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsRel = self.needsTensor[:, 2].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
         elif data[11] == 2:
             self.groupProbs = (torch.transpose(self.occupationProb, 0, 1) * self.ageProb).reshape([self.G, 1])
             self.needsSh = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
-            self.needsSch = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
-            self.needsRel = self.needsTensor[:, 0].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsSch = self.needsTensor[:, 1].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
+            self.needsRel = self.needsTensor[:, 2].reshape([self.occupationProb.shape[0], self.occupationProb.shape[1]]).transpose(0, 1).reshape([self.G, 1])
             self.needsSh = self.needsSh / self.Nshop
             self.needsSch = self.needsSch / self.Nschool
             self.needsRel = self.needsRel / self.Nreligion
@@ -208,6 +229,12 @@ class MonthData:
         self.BBNSh[self.BBNSh == 0] = 1
         self.BBNSch[self.BBNSch == 0] = 1
         self.BBNRel[self.BBNRel == 0] = 1
+
+        # RELATED TO GAP
+        self.gap_param_up = torch.ones(1)
+        self.gap_param_down = torch.ones(1)
+        self.gapVal = torch.tensor(1)
+        self.gapParam = torch.ones(1)
 
         # DEBUG
         self.expectationDebugCounter = 0
@@ -234,6 +261,14 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
         pOISchools = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'schoolLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
         pOIReligion = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'religionLocVis_' + dates[monthsTrain[i]] + '.csv', header=None)
 
+        shopFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVShop_' + dates[monthsTrain[i]] + '.csv', header=None)
+        schoolFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVSchool_' + dates[monthsTrain[i]] + '.csv', header=None)
+        religionFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVReligion_' + dates[monthsTrain[i]] + '.csv', header=None)
+
+        cBGShopProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_shopCBG_probability_' + dates[monthsTrain[i]] + '.csv', header=None)
+        cBGSchoolProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_schoolCBG_probability_' + dates[monthsTrain[i]] + '.csv', header=None)
+        cBGReligionProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_religionCBG_probability_' + dates[monthsTrain[i]] + '.csv', header=None)
+
         population = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_population.csv', header=None)
         populationCBG = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_CBGPopProb.csv', header=None)
         needs = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data_numbers.csv', header=None)
@@ -253,7 +288,9 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex]
+        fracs = [shopFrac,schoolFrac,religionFrac]
+
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb]
 
         monthData = MonthData(data)
         trainBundle.monthlyData.append(monthData)
@@ -265,7 +302,16 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
         pOISchools = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTest + os.sep + 'schoolLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
         pOIReligion = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTest + os.sep + 'religionLocVis_' + dates[monthsTest[i]] + '.csv', header=None)
 
+        shopFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVShop_' + dates[monthsTest[i]] + '.csv', header=None)
+        schoolFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVSchool_' + dates[monthsTest[i]] + '.csv', header=None)
+        religionFrac = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'MVReligion_' + dates[monthsTest[i]] + '.csv', header=None)
+
+        cBGShopProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_shopCBG_probability_' + dates[monthsTest[i]] + '.csv', header=None)
+        cBGSchoolProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_schoolCBG_probability_' + dates[monthsTest[i]] + '.csv', header=None)
+        cBGReligionProb = pd.read_csv('..' + os.sep + 'TimedData' + os.sep + cityTrain + os.sep + 'sourceCBG_religionCBG_probability_' + dates[monthsTest[i]] + '.csv', header=None)
+
         population = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTest + '_population.csv', header=None)
+        populationCBG = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + cityTrain + '_CBGPopProb.csv', header=None)
         needs = pd.read_csv('..' + os.sep + 'FixedData' + os.sep + 'Needs_data_numbers.csv', header=None)
 
         isFirst = True
@@ -283,7 +329,9 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
         for j in range(pOIReligion.shape[0]):
             pOIReligionProb.at[j, 0] = pOIReligion.iloc[j, 1] / sRel
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex]
+        fracs = [shopFrac, schoolFrac, religionFrac]
+
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb]
         monthData = MonthData(data)
         testBundle.monthlyData.append(monthData)
 

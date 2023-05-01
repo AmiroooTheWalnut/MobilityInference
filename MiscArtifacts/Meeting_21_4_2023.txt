@@ -1,0 +1,16 @@
+-Visualization of Visits to multiple POIs
+-Visualization of Closeness related to shopping
+
+
+-Baseline traditional model such as Binomial regression or Poisson regression model (* Poisson model seems better because it is a rate model)
+
+-Get style of NIPS and start the draft.
+
+-Posterior predictive check future prediction and the data fit (similar to error)
+-Perplexity low entropy (2^entropy) on test data.
+
+-Don't go for different cities
+
+-Perpexity we expect to decrease by more components
+
+-Each POI is like a word and each month is like a Document.
