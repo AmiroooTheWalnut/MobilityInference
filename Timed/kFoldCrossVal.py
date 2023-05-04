@@ -103,7 +103,7 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,trainCity
     #     logging.info("loss fold {} = {}".format(dataIndices[i],loss))
     #     testLosses.append(loss)
     #     testErrors.append(tests[0].globalError[0])
-    losses,errors,errorsFrac=validate(tests, elbo, model, guide, numParticles, trainCity)
+    losses,errors,errorsFrac=validate(train[0],tests, elbo, model, guide, numParticles, trainCity)
 
 
     foldOutput = FoldOutput(trainIndex,trainLoss,trainError,trainErrorFrac,losses,errors,errorsFrac)

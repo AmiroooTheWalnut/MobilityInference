@@ -156,10 +156,10 @@ class Test():
                 shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].nonZeroNeedsShopIndices)).cuda()
                 schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].nonZeroNeedsSchoolIndices)).cuda()
                 relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].nonZeroNeedsRelIndices)).cuda()
-                var=torch.tensor(1).cuda()
-                pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),var), obs=trainShopFracObs)
-                pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),var), obs=trainSchoolFracObs)
-                pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),var), obs=trainRelFracObs)
+
+                pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),data[0].multiVisitVarShParam), obs=trainShopFracObs)
+                pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
+                pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),data[0].multiVisitVarRelParam), obs=trainRelFracObs)
             with pyro.plate('observe_data'):
                 shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(newSumShop/data[0].gapParam).to_event(1), obs=data[0].pOIShops.flatten())
                 schoolVisitsObs = pyro.sample("S_School", dist.Poisson(newSumSchool/data[0].gapParam).to_event(1), obs=data[0].pOISchools.flatten())

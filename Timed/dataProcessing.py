@@ -48,6 +48,11 @@ class DataBundle:
         data.pOIShops=data.pOIShops.cuda()
         data.pOISchools=data.pOISchools.cuda()
         data.pOIReligion=data.pOIReligion.cuda()
+
+        data.shopFrac = data.shopFrac.cuda()
+        data.schoolFrac = data.schoolFrac.cuda()
+        data.relFrac = data.relFrac.cuda()
+
         data.pOIShopProb=data.pOIShopProb.cuda()
         data.pOISchoolProb=data.pOISchoolProb.cuda()
         data.pOIReligionProb=data.pOIReligionProb.cuda()
@@ -126,6 +131,8 @@ class DataBundle:
 
 class MonthData:
     def __init__(self, data):
+        self.isTrainedOnOneMonth = 0
+
         self.pOIs = torch.tensor(data[0].values)
         self.needs = data[1]
 
@@ -198,6 +205,12 @@ class MonthData:
         self.beta_paramShop = torch.ones(self.G)
         self.beta_paramSchool = torch.ones(self.G)
         self.beta_paramReligion = torch.ones(self.G)
+        self.multiVisitVarShParam = torch.ones(1)
+        self.multiVisitVarSchParam = torch.ones(1)
+        self.multiVisitVarRelParam = torch.ones(1)
+        # self.obsVarShParam = torch.ones(1)
+        # self.obsVarSchParam = torch.ones(1)
+        # self.obsVarRelParam = torch.ones(1)
         self.populationCBG = torch.tensor(data[10].values)
         self.NCBG = data[10].shape[0]
         self.populationNum = (self.populationCBG*self.N).flatten()

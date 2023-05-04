@@ -33,6 +33,7 @@ from pyro.optim import SGD
 from dataProcessing import *
 from kFoldCrossVal import *
 from VisualizeAlphaBeta import *
+import gc
 
 class Test():
 
@@ -118,34 +119,86 @@ class Test():
                 temp.append(data[i].relFrac)
             trainRelFracObs = torch.Tensor(temp).cuda()
 
-            with pyro.plate("Nshop", data[0].Nshop) as nshop:
-                shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh)).cuda()
-                shopVisitsPOIs = shopVisits.sum([1, 2]).cuda()
-                shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[0].pOIShopProb)
-                expectedSum = shopVisitsPOIs.sum().cuda()
-                newSum = shopVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumShop = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0))).cuda()
+            with pyro.plate("NCBG", data[0].NCBG) as ncbg:
+                with pyro.plate("G", data[0].G) as g:
+                    newSumShopFinal=[]
+                    newSumSchoolFinal=[]
+                    newSumRelFinal=[]
+                    obsPOIShops = []
+                    obsPOISchools = []
+                    obsPOIRels = []
+                    for i in pyro.plate("visitObs_plate", len(data)):
+                        obsPOIShops.append(data[i].pOIShops.flatten())
+                        obsPOISchools.append(data[i].pOISchools.flatten())
+                        obsPOIRels.append(data[i].pOIReligion.flatten())
+                        with pyro.plate("Nshop_{}".format(i), data[i].Nshop) as nshop:
+                            shopVisits = pyro.sample("Tu_Shop_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh)).cuda()
+                            shopVisitsPOIs = shopVisits.sum([1, 2]).cuda()
+                            shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[i].pOIShopProb)
+                            expectedSum = shopVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = shopVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumShop = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0)))
+                            del shopVisits
+                            del shopVisitsPOIs
+                            del shopVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumShopFinal.append(newSumShop)
 
-                schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch)).cuda()
-                schoolVisitsPOIs = schoolVisits.sum([1, 2])
-                schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[0].pOISchoolProb)
-                expectedSum = schoolVisitsPOIs.sum().cuda()
-                newSum = schoolVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
+                        with pyro.plate("Nschool_{}".format(i), data[i].Nschool) as nschool:
+                            schoolVisits = pyro.sample("Tu_School_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch)).cuda()
+                            schoolVisitsPOIs = schoolVisits.sum([1, 2])
+                            schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[i].pOISchoolProb)
+                            expectedSum = schoolVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = schoolVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
+                            del schoolVisits
+                            del schoolVisitsPOIs
+                            del schoolVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumSchoolFinal.append(newSumSchool)
 
-                religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel)).cuda()
-                religionVisitsPOIs = religionVisits.sum([1, 2])
-                religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[0].pOIReligionProb)
-                expectedSum = religionVisitsPOIs.sum().cuda()
-                newSum = religionVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumRel = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
+                        with pyro.plate("Nreligion_{}".format(i), data[i].Nreligion) as nreligion:
+                            religionVisits = pyro.sample("Tu_Religion_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel)).cuda()
+                            religionVisitsPOIs = religionVisits.sum([1, 2])
+                            religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[i].pOIReligionProb)
+                            expectedSum = religionVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = religionVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumRel = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
+                            del religionVisits
+                            del religionVisitsPOIs
+                            del religionVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumRelFinal.append(newSumRel)
 
-                shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(newSumShop / data[0].gapParam).to_event(1), obs=data[0].pOIShops.flatten())
-                schoolVisitsObs = pyro.sample("S_School", dist.Poisson(newSumSchool / data[0].gapParam).to_event(1), obs=data[0].pOISchools.flatten())
-                religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(newSumRel / data[0].gapParam).to_event(1), obs=data[0].pOIReligion.flatten())
+                # pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),data[0].multiVisitVarShParam), obs=trainShopFracObs)
+                # pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
+                # pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),data[0].multiVisitVarRelParam), obs=trainRelFracObs)
+
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            with pyro.plate('observe_data'):
+                # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(newSumShop / data[0].gapParam,data[0].obsVarShParam).to_event(1), obs=data[0].pOIShops)
+                # schoolVisitsObs = pyro.sample("S_School", dist.Normal(newSumSchool / data[0].gapParam,data[0].obsVarSchParam).to_event(1), obs=data[0].pOISchools)
+                # religionVisitsObs = pyro.sample("S_Religion", dist.Normal(newSumRel / data[0].gapParam,data[0].obsVarRelParam).to_event(1), obs=data[0].pOIReligion)
+                shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(torch.cat(newSumShopFinal) / data[0].gapParam).to_event(1), obs=torch.cat(obsPOIShops))
+                schoolVisitsObs = pyro.sample("S_School", dist.Poisson(torch.cat(newSumSchoolFinal) / data[0].gapParam).to_event(1), obs=torch.cat(obsPOISchools))
+                religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(torch.cat(newSumRelFinal) / data[0].gapParam).to_event(1), obs=torch.cat(obsPOIRels))
+            del newSumShopFinal
+            del obsPOIShops
+            del newSumSchoolFinal
+            del obsPOISchools
+            del newSumRelFinal
+            del obsPOIRels
 
             with pyro.plate('observed_fracs'):
                 alphaShop_nonZero = torch.gather(data[0].alpha_paramShop, 0, data[0].nonZeroNeedsShopIndices)
@@ -197,6 +250,34 @@ class Test():
                 print("relMultiVisit {} observed {}".format(relMultiVisit.mean(), trainRelFracObs.mean()))
                 print("gapParam {}".format(data[0].gapParam))
                 data[0].isFirst=False
+            # numobjs=0
+            # for obj in gc.get_objects():
+            #     try:
+            #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+            #             print(type(obj), obj.size())
+            #             print(obj.dtype)
+            #
+            #             del obj
+            #             numobjs=numobjs+1
+            #     except:
+            #         pass
+            # print("numobjs {}".format(numobjs))
+            gc.collect()
+            torch.cuda.empty_cache()
+
+            # print("!!!")
+            # numobjs=0
+            # for obj in gc.get_objects():
+            #     try:
+            #         if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+            #             print(type(obj), obj.size())
+            #             print(obj.dtype)
+            #
+            #             del obj
+            #             numobjs=numobjs+1
+            #     except:
+            #         pass
+            # print("numobjs {}".format(numobjs))
 
             return shopVisitsObs, schoolVisitsObs, religionVisitsObs
 
@@ -243,52 +324,79 @@ class Test():
             # data[0].obsVarSchParam = pyro.param("obsVarSch_Param", torch.ones(1), constraint=constraints.positive).cuda()
             # data[0].obsVarRelParam = pyro.param("obsVarRel_Param", torch.ones(1), constraint=constraints.positive).cuda()
 
-            # groupProbs = (torch.transpose(data[0].occupationProb, 0, 1) * data[0].ageProb).reshape([data[0].G, 1])
-            # needsSh = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
-            # needsSch = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
-            # needsRel = data[0].needsTensor[:, 0].reshape([data[0].occupationProb.shape[0], data[0].occupationProb.shape[1]]).transpose(0, 1).reshape([data[0].G, 1])
-            # data[0].BBNSh = (needsSh * groupProbs * data[0].populationNum.repeat([data[0].G, 1])).round()
-            # data[0].BBNSch = (needsSch * groupProbs * data[0].populationNum.repeat([data[0].G, 1])).round()
-            # data[0].BBNRel = (needsRel * groupProbs * data[0].populationNum.repeat([data[0].G, 1])).round()
-            # data[0].BBNSh[data[0].BBNSh == 0] = 1
-            # data[0].BBNSch[data[0].BBNSch == 0] = 1
-            # data[0].BBNRel[data[0].BBNRel == 0] = 1
+            with pyro.plate("NCBG", data[0].NCBG) as ncbg:
+                with pyro.plate("G", data[0].G) as g:
+                    newSumShopFinal = []
+                    newSumSchoolFinal = []
+                    newSumRelFinal = []
+                    obsPOIShops = []
+                    obsPOISchools = []
+                    obsPOIRels = []
+                    for i in pyro.plate("visitObs_plate", len(data)):
+                        obsPOIShops.append(data[i].pOIShops.flatten())
+                        obsPOISchools.append(data[i].pOISchools.flatten())
+                        obsPOIRels.append(data[i].pOIReligion.flatten())
+                        with pyro.plate("Nshop_{}".format(i), data[i].Nshop) as nshop:
+                            shopVisits = pyro.sample("Tu_Shop_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh)).cuda()
+                            shopVisitsPOIs = shopVisits.sum([1, 2]).cuda()
+                            shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[i].pOIShopProb)
+                            expectedSum = shopVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = shopVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumShop = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0)))
+                            del shopVisits
+                            del shopVisitsPOIs
+                            del shopVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumShopFinal.append(newSumShop)
 
-            # alphaShopReady = torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1).cuda()
-            # betaShopReady = torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1).cuda()
-            # alphaSchoolReady = torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1).cuda()
-            # betaSchoolReady = torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1).cuda()
-            # alphaRelReady = torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1).cuda()
-            # betaRelReady = torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1).cuda()
+                        with pyro.plate("Nschool_{}".format(i), data[i].Nschool) as nschool:
+                            schoolVisits = pyro.sample("Tu_School_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch)).cuda()
+                            schoolVisitsPOIs = schoolVisits.sum([1, 2])
+                            schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[i].pOISchoolProb)
+                            expectedSum = schoolVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = schoolVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
+                            del schoolVisits
+                            del schoolVisitsPOIs
+                            del schoolVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumSchoolFinal.append(newSumSchool)
 
-            with pyro.plate("Nshop", data[0].Nshop) as nshop:
-                shopVisits = pyro.sample("Tu_Shop", dist.BetaBinomial(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSh)).cuda()
-                shopVisitsPOIs = shopVisits.sum([1, 2]).cuda()
-                shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[0].pOIShopProb)
-                expectedSum = shopVisitsPOIs.sum().cuda()
-                newSum = shopVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumShop = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0))).cuda()
+                        with pyro.plate("Nreligion_{}".format(i), data[i].Nreligion) as nreligion:
+                            religionVisits = pyro.sample("Tu_Religion_{}".format(i), dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel)).cuda()
+                            religionVisitsPOIs = religionVisits.sum([1, 2])
+                            religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[i].pOIReligionProb)
+                            expectedSum = religionVisitsPOIs.sum(dtype=torch.float32).cuda()
+                            newSum = religionVisitsPOIsAdjusted.sum(dtype=torch.float32).cuda()
+                            diff = expectedSum - newSum
+                            newSumRel = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
+                            del religionVisits
+                            del religionVisitsPOIs
+                            del religionVisitsPOIsAdjusted
+                            del expectedSum
+                            del newSum
+                            del diff
+                            newSumRelFinal.append(newSumRel)
 
-                schoolVisits = pyro.sample("Tu_School", dist.BetaBinomial(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNSch)).cuda()
-                schoolVisitsPOIs = schoolVisits.sum([1, 2])
-                schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[0].pOISchoolProb)
-                expectedSum = schoolVisitsPOIs.sum().cuda()
-                newSum = schoolVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0))).cuda()
+                # pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),data[0].multiVisitVarShParam), obs=trainShopFracObs)
+                # pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
+                # pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),data[0].multiVisitVarRelParam), obs=trainRelFracObs)
 
-                religionVisits = pyro.sample("Tu_Religion", dist.BetaBinomial(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1), data[0].BBNRel)).cuda()
-                religionVisitsPOIs = religionVisits.sum([1, 2])
-                religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[0].pOIReligionProb)
-                expectedSum = religionVisitsPOIs.sum().cuda()
-                newSum = religionVisitsPOIsAdjusted.sum().cuda()
-                diff = expectedSum - newSum
-                newSumRel = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
-
-                pyro.sample("S_Shop", dist.Poisson(newSumShop / data[0].gapParam).to_event(1))
-                pyro.sample("S_School", dist.Poisson(newSumSchool / data[0].gapParam).to_event(1))
-                pyro.sample("S_Religion", dist.Poisson(newSumRel / data[0].gapParam).to_event(1))
+            gc.collect()
+            torch.cuda.empty_cache()
+            with pyro.plate('observe_data'):
+                # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(newSumShop / data[0].gapParam,data[0].obsVarShParam).to_event(1), obs=data[0].pOIShops)
+                # schoolVisitsObs = pyro.sample("S_School", dist.Normal(newSumSchool / data[0].gapParam,data[0].obsVarSchParam).to_event(1), obs=data[0].pOISchools)
+                # religionVisitsObs = pyro.sample("S_Religion", dist.Normal(newSumRel / data[0].gapParam,data[0].obsVarRelParam).to_event(1), obs=data[0].pOIReligion)
+                pyro.sample("S_Shop", dist.Poisson(torch.cat(newSumShopFinal) / data[0].gapParam).to_event(1))
+                pyro.sample("S_School", dist.Poisson(torch.cat(newSumSchoolFinal) / data[0].gapParam).to_event(1))
+                pyro.sample("S_Religion", dist.Poisson(torch.cat(newSumRelFinal) / data[0].gapParam).to_event(1))
 
             with pyro.plate('observed_fracs'):
                 alphaShop_nonZero = torch.gather(data[0].alpha_paramShop, 0, data[0].nonZeroNeedsShopIndices)
@@ -314,53 +422,13 @@ class Test():
                 # pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),data[0].multiVisitVarShParam), obs=trainShopFracObs)
                 # pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
                 # pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),data[0].multiVisitVarRelParam), obs=trainRelFracObs)
-            with pyro.plate('observe_data'):
-                # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(newSumShop / data[0].gapParam,data[0].obsVarShParam).to_event(1), obs=data[0].pOIShops)
-                # schoolVisitsObs = pyro.sample("S_School", dist.Normal(newSumSchool / data[0].gapParam,data[0].obsVarSchParam).to_event(1), obs=data[0].pOISchools)
-                # religionVisitsObs = pyro.sample("S_Religion", dist.Normal(newSumRel / data[0].gapParam,data[0].obsVarRelParam).to_event(1), obs=data[0].pOIReligion)
-                for i in pyro.plate("visitObs_plate", len(data)):
-                    pyro.sample("S_Shop_{}".format(i), dist.Poisson(newSumShop / data[0].gapParam).to_event(1))
-                    pyro.sample("S_School_{}".format(i), dist.Poisson(newSumSchool / data[0].gapParam).to_event(1))
-                    pyro.sample("S_Religion_{}".format(i), dist.Poisson(newSumRel / data[0].gapParam).to_event(1))
-            #     pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(),var))
-            #     pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(),var))
-            #     pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(),var))
-            # with pyro.plate('observe_data'):
-            #     pyro.sample("S_Shop", dist.Poisson(newSumShop/data[0].gapParam).to_event(1))
-            #     pyro.sample("S_School", dist.Poisson(newSumSchool/data[0].gapParam).to_event(1))
-            #     pyro.sample("S_Religion", dist.Poisson(newSumRel/data[0].gapParam).to_event(1))
 
-            # with pyro.plate("NCBG", data[0].NCBG) as ncbg:
-            #     with pyro.plate("G", data[0].G) as g:
-            #         with pyro.plate("Nshop", data[0].Nshop) as nshop:
-            #             pyro.sample("Tu_Shop", dist.BetaBinomial(alphaShopReady, betaShopReady, data[0].BBNSh))
-            #             # shopVisitsPOIs = shopVisits.sum([1, 2])
-            #             # shopVisitsPOIsAdjusted = torch.mul(shopVisitsPOIs, data[0].pOIShopProb)
-            #             # expectedSum = shopVisitsPOIs.sum()
-            #             # newSum = shopVisitsPOIsAdjusted.sum()
-            #             # diff = expectedSum - newSum
-            #             # newSumShop = torch.add(shopVisitsPOIsAdjusted, torch.div(diff, shopVisitsPOIs.size(dim=0)))
-            #
-            #         with pyro.plate("Nschool", data[0].Nschool) as nschool:
-            #             pyro.sample("Tu_School", dist.BetaBinomial(alphaSchoolReady, betaSchoolReady, data[0].BBNSch))
-            #             # schoolVisitsPOIs = schoolVisits.sum([1, 2])
-            #             # schoolVisitsPOIsAdjusted = torch.mul(schoolVisitsPOIs, data[0].pOISchoolProb)
-            #             # expectedSum = schoolVisitsPOIs.sum()
-            #             # newSum = schoolVisitsPOIsAdjusted.sum()
-            #             # diff = expectedSum - newSum
-            #             # newSumSchool = torch.add(schoolVisitsPOIsAdjusted, torch.div(diff, schoolVisitsPOIs.size(dim=0)))
-            #
-            #         with pyro.plate("Nreligion", data[0].Nreligion) as nreligion:
-            #             pyro.sample("Tu_Religion", dist.BetaBinomial(alphaRelReady, betaRelReady, data[0].BBNRel))
-            #             # religionVisitsPOIs = religionVisits.sum([1, 2])
-            #             # religionVisitsPOIsAdjusted = torch.mul(religionVisitsPOIs, data[0].pOIReligionProb)
-            #             # expectedSum = religionVisitsPOIs.sum()
-            #             # newSum = religionVisitsPOIsAdjusted.sum()
-            #             # diff = expectedSum - newSum
-            #             # newSumRel = torch.add(religionVisitsPOIsAdjusted, torch.div(diff, religionVisitsPOIs.size(dim=0)))
+            gc.collect()
+            torch.cuda.empty_cache()
 
 
         pyro.clear_param_store()
+        torch.set_default_dtype(torch.float32)
 
         logging.basicConfig(format="%(relativeCreated) 9d %(message)s", level=logging.INFO)
 
@@ -549,6 +617,20 @@ class Test():
                     #     print("{} = {}".format(name, value.detach().cpu().numpy()))
                 # if maxError <= error_tolerance:
                 #     break
+                numobjs = 0
+                for obj in gc.get_objects():
+                    try:
+                        if torch.is_tensor(obj) or (hasattr(obj, 'data') and torch.is_tensor(obj.data)):
+                            print(type(obj), obj.size())
+                            print(obj.dtype)
+
+                            del obj
+                            numobjs = numobjs + 1
+                    except:
+                        pass
+                print("numobjs {}".format(numobjs))
+                gc.collect()
+                torch.cuda.empty_cache()
 
             showAlphaBetaRange("CBG based simulation", allData.trainData.monthlyData[0], needsVerbose)
 
@@ -615,7 +697,7 @@ if __name__ ==  '__main__':
         test = Test()
         tests.append(test)
         # print('!!!123')
-        p = multiprocessing.Process(target=test.run,args=(3, 0.7, "RenyiELBO", 0.5,i,retVals))
+        p = multiprocessing.Process(target=test.run,args=(2, 0.7, "RenyiELBO", 0.5,i,retVals))
         p.start()
         processes.append(p)
         # print('!!!')

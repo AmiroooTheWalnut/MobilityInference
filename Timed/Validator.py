@@ -1,11 +1,22 @@
 import numpy as np
 import logging
 
-def validate(tests, elbo, model, guide, numParticles, city):
+def validate(train,tests, elbo, model, guide, numParticles, city):
     losses=[]
     errors=[]
     errorsFrac=[]
     for i in range(len(tests)):
+        tests[i].alpha_paramShop = train.alpha_paramShop.cuda()
+        tests[i].alpha_paramSchool = train.alpha_paramSchool.cuda()
+        tests[i].alpha_paramReligion = train.alpha_paramReligion.cuda()
+        tests[i].beta_paramShop = train.beta_paramShop.cuda()
+        tests[i].beta_paramSchool = train.beta_paramSchool.cuda()
+        tests[i].beta_paramReligion = train.beta_paramReligion.cuda()
+        tests[i].multiVisitVarShParam = train.multiVisitVarShParam
+        tests[i].multiVisitVarSchParam = train.multiVisitVarSchParam
+        tests[i].multiVisitVarRelParam = train.multiVisitVarRelParam
+        tests[i].gapParam = train.gapParam
+        tests[i].isTrainedOnOneMonth=train.isTrainedOnOneMonth
         tests[i].globalError = np.zeros(numParticles, dtype=np.float32)
         tests[i].globalErrorFrac = np.zeros(numParticles, dtype=np.float32)
         loss = elbo.loss(model, guide, [tests[i]])
