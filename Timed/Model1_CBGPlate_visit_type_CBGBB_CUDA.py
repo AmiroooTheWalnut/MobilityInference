@@ -84,13 +84,15 @@ class Test():
             data[0].alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive).cuda()
             data[0].beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive).cuda()
 
-            data[0].gapParam = pyro.param("gap_param", torch.ones(1).add(3), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarShParam = pyro.param("multiVisitVarSh_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarSchParam = pyro.param("multiVisitVarSch_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarRelParam = pyro.param("multiVisitVarRel_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarShParam = pyro.param("obsVarSh_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarSchParam = pyro.param("obsVarSch_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarRelParam = pyro.param("obsVarRel_Param", torch.ones(1), constraint=constraints.positive).cuda()
+            data[0].gapParamShop = pyro.param("gapShop_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamSchool = pyro.param("gapSchool_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamRel = pyro.param("gapRel_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamShopFrac = pyro.param("gapShopFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamSchoolFrac = pyro.param("gapSchoolFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamRelFrac = pyro.param("gapRelFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarShParam = pyro.param("multiVisitVarSh_Param", torch.ones(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarSchParam = pyro.param("multiVisitVarSch_Param", torch.ones(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarRelParam = pyro.param("multiVisitVarRel_Param", torch.ones(1),constraint=constraints.positive).cuda()
 
             # \/\/\/ Big individual
             # with pyro.plate("NCBG", data[0].NCBG) as ncbg:
@@ -139,28 +141,27 @@ class Test():
                 # shopMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsShopIndices), (alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].nonZeroNeedsShopIndices)).cuda()
                 # schoolMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsSchoolIndices), (alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].nonZeroNeedsSchoolIndices)).cuda()
                 # relMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsRelIndices), (alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].nonZeroNeedsRelIndices)).cuda()
-                shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].nonZeroNeedsShopIndices)).cuda()
-                schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].nonZeroNeedsSchoolIndices)).cuda()
-                relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].nonZeroNeedsRelIndices)).cuda()
-                if data[0].isTrainedOnOneMonth==1:
-                    pyro.sample("M_Shop", dist.Poisson(shopMultiVisit.mean()), obs=trainShopFracObs)
-                    pyro.sample("M_School", dist.Poisson(schoolMultiVisit.mean()), obs=trainSchoolFracObs)
-                    pyro.sample("M_Religion", dist.Poisson(relMultiVisit.mean()), obs=trainRelFracObs)
+                shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (
+                data[0].needsTensor[:, 0][data[0].nonZeroNeedsShopIndices])).cuda()
+                schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (
+                data[0].needsTensor[:, 1][data[0].nonZeroNeedsSchoolIndices])).cuda()
+                relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (
+                data[0].needsTensor[:, 2][data[0].nonZeroNeedsRelIndices])).cuda()
+                if data[0].isTrainedOnOneMonth == 1:
+                    pyro.sample("M_Shop", dist.Poisson(shopMultiVisit.mean() / data[0].gapParamShopFrac),obs=trainShopFracObs)
+                    pyro.sample("M_School", dist.Poisson(schoolMultiVisit.mean() / data[0].gapParamSchoolFrac),obs=trainSchoolFracObs)
+                    pyro.sample("M_Religion", dist.Poisson(relMultiVisit.mean() / data[0].gapParamRelFrac),obs=trainRelFracObs)
                 else:
-                    pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(), data[0].multiVisitVarShParam), obs=trainShopFracObs)
-                    pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(), data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
-                    pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(), data[0].multiVisitVarRelParam), obs=trainRelFracObs)
+                    pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean() / data[0].gapParamShopFrac,data[0].multiVisitVarShParam), obs=trainShopFracObs)
+                    pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean() / data[0].gapParamSchoolFrac,data[0].multiVisitVarSchParam), obs=trainSchoolFracObs)
+                    pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean() / data[0].gapParamRelFrac,data[0].multiVisitVarRelParam), obs=trainRelFracObs)
+
             with pyro.plate('observe_data'):
-                # shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(sumValShop/data[0].gapParam), obs=trainShopObs)
-                # schoolVisitsObs = pyro.sample("S_School", dist.Poisson(sumValSchool/data[0].gapParam), obs=trainSchoolObs)
-                # religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(sumValRel/data[0].gapParam), obs=trainRelObs)
                 for i in pyro.plate("visitObs_plate", len(data)):
-                    shopVisitsObs = pyro.sample("S_Shop_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh)/data[0].gapParam), obs=torch.round(data[i].pOIs[0, 1]))
-                    schoolVisitsObs = pyro.sample("S_School_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch)/data[0].gapParam), obs=torch.round(data[i].pOIs[1, 1]))
-                    religionVisitsObs = pyro.sample("S_Religion_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel)/data[0].gapParam), obs=torch.round(data[i].pOIs[2, 1]))
-                # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh) / data[0].gapParam,data[0].obsVarShParam),obs=trainShopObs)
-                # schoolVisitsObs = pyro.sample("S_School", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch) / data[0].gapParam,data[0].obsVarSchParam),obs=trainSchoolObs)
-                # religionVisitsObs = pyro.sample("S_Religion", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel) / data[0].gapParam,data[0].obsVarRelParam), obs=trainRelObs)
+                    shopVisitsObs = pyro.sample("S_Shop_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh)/data[0].gapParamShop), obs=torch.round(data[i].pOIs[0, 1]))
+                    schoolVisitsObs = pyro.sample("S_School_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch)/data[0].gapParamSchool), obs=torch.round(data[i].pOIs[1, 1]))
+                    religionVisitsObs = pyro.sample("S_Religion_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel)/data[0].gapParamRel), obs=torch.round(data[i].pOIs[2, 1]))
+
             # shopVisitsObs=0
             # schoolVisitsObs=0
             # religionVisitsObs=0
@@ -171,15 +172,15 @@ class Test():
 
             for i in range(data[0].globalErrorFrac.shape[0]):
                 if data[0].globalErrorFrac[i] == 0:
-                    data[0].globalErrorFrac[i] = torch.absolute(shopMultiVisit.mean() - trainShopFracObs.mean()) + torch.absolute(schoolMultiVisit.mean() - trainSchoolFracObs.mean()) + torch.absolute(relMultiVisit.mean() - trainRelFracObs.mean())
+                    data[0].globalErrorFrac[i] = torch.absolute(shopMultiVisit.mean()/data[0].gapParamShopFrac - trainShopFracObs.mean()) + torch.absolute(schoolMultiVisit.mean()/data[0].gapParamSchoolFrac - trainSchoolFracObs.mean()) + torch.absolute(relMultiVisit.mean()/data[0].gapParamRelFrac - trainRelFracObs.mean())
                     # print("within errors {}".format(globalError[i]))
                     break
 
             for i in range(data[0].globalError.shape[0]):
                 if data[0].globalError[i] == 0:
-                    shopAnalytical = torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh)/data[0].gapParam
-                    schoolAnalytical = torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch)/data[0].gapParam
-                    religionAnalytical = torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel)/data[0].gapParam
+                    shopAnalytical = torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh)/data[0].gapParamShop
+                    schoolAnalytical = torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch)/data[0].gapParamSchool
+                    religionAnalytical = torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel)/data[0].gapParamRel
                     data[0].globalError[i] = torch.absolute((shopAnalytical - data[0].pOIs[0, 1])/(data[0].pOIs[0, 1])) + torch.absolute((schoolAnalytical - data[0].pOIs[1, 1])/(data[0].pOIs[1, 1])) + torch.absolute((religionAnalytical - data[0].pOIs[2, 1])/(data[0].pOIs[2, 1]))
                     # print("within errors {}".format(globalError[i]))
                     break
@@ -188,7 +189,9 @@ class Test():
                 print("shopMultiVisit {} observed {}".format(shopMultiVisit.mean(),trainShopFracObs.mean()))
                 print("schoolMultiVisit {} observed {}".format(schoolMultiVisit.mean(), trainSchoolFracObs.mean()))
                 print("relMultiVisit {} observed {}".format(relMultiVisit.mean(), trainRelFracObs.mean()))
-                print("gapParam {}".format(data[0].gapParam))
+                print("gapParamShop {}".format(data[0].gapParamShop))
+                print("gapParamSchool {}".format(data[0].gapParamSchool))
+                print("gapParamRel {}".format(data[0].gapParamRel))
                 data[0].isFirst=False
 
             return shopVisitsObs, schoolVisitsObs, religionVisitsObs
@@ -234,13 +237,15 @@ class Test():
             data[0].alpha_paramReligion = pyro.param("alpha_paramReligion_G", temp_alpha_paramRel, constraint=constraints.positive).cuda()
             data[0].beta_paramReligion = pyro.param("beta_paramReligion_G", temp_beta_paramRel, constraint=constraints.positive).cuda()
 
-            data[0].gapParam = pyro.param("gap_param", torch.ones(1).add(3), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarShParam = pyro.param("multiVisitVarSh_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarSchParam = pyro.param("multiVisitVarSch_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].multiVisitVarRelParam = pyro.param("multiVisitVarRel_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarShParam = pyro.param("obsVarSh_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarSchParam = pyro.param("obsVarSch_Param", torch.ones(1), constraint=constraints.positive).cuda()
-            data[0].obsVarRelParam = pyro.param("obsVarRel_Param", torch.ones(1), constraint=constraints.positive).cuda()
+            data[0].gapParamShop = pyro.param("gapShop_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamSchool = pyro.param("gapSchool_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamRel = pyro.param("gapRel_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamShopFrac = pyro.param("gapShopFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamSchoolFrac = pyro.param("gapSchoolFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].gapParamRelFrac = pyro.param("gapRelFrac_param", torch.ones(1).add(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarShParam = pyro.param("multiVisitVarSh_Param", torch.ones(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarSchParam = pyro.param("multiVisitVarSch_Param", torch.ones(1),constraint=constraints.positive).cuda()
+            data[0].multiVisitVarRelParam = pyro.param("multiVisitVarRel_Param", torch.ones(1),constraint=constraints.positive).cuda()
 
             # print("multiVisitVarParam: {}".format(data[0].multiVisitVarParam))
 
@@ -255,6 +260,21 @@ class Test():
             # sumValSchool = schoolVisits.sum()
             # sumValRel = religionVisits.sum()
             # ^^^ Big individual
+
+            with pyro.plate('observe_data'):
+                for i in pyro.plate("visitObs_plate", len(data)):
+                    pyro.sample("S_Shop_{}".format(i), dist.Poisson(torch.sum((torch.transpose(
+                        data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(
+                        data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(
+                        data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh) / data[0].gapParamShop))
+                    pyro.sample("S_School_{}".format(i), dist.Poisson(torch.sum((torch.transpose(
+                        data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(
+                        data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(
+                        data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch) / data[0].gapParamSchool))
+                    pyro.sample("S_Religion_{}".format(i), dist.Poisson(torch.sum((torch.transpose(
+                        data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(
+                        data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(
+                        data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel) / data[0].gapParamRel))
 
             # temp = []
             # for i in range(len(data)):
@@ -291,28 +311,24 @@ class Test():
                 # shopMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsShopIndices), (alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].nonZeroNeedsShopIndices)).cuda()
                 # schoolMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsSchoolIndices), (alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].nonZeroNeedsSchoolIndices)).cuda()
                 # relMultiVisit = torch.maximum(torch.gather(data[0].oneAuxVal, 0, data[0].nonZeroNeedsRelIndices), (alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].nonZeroNeedsRelIndices)).cuda()
-                shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].nonZeroNeedsShopIndices)).cuda()
-                schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].nonZeroNeedsSchoolIndices)).cuda()
-                relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].nonZeroNeedsRelIndices)).cuda()
+                shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (
+                data[0].needsTensor[:, 0][data[0].nonZeroNeedsShopIndices])).cuda()
+                schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (
+                data[0].needsTensor[:, 1][data[0].nonZeroNeedsSchoolIndices])).cuda()
+                relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (
+                data[0].needsTensor[:, 2][data[0].nonZeroNeedsRelIndices])).cuda()
+                # shopMultiVisit = ((alphaShop_nonZero / (alphaShop_nonZero + betaShop_nonZero)) * (data[0].needsTensor[:, 0][data[0].nonZeroNeedsShopIndices] / data[0].gapParamShop)).cuda()
+                # schoolMultiVisit = ((alphaSchool_nonZero / (alphaSchool_nonZero + betaSchool_nonZero)) * (data[0].needsTensor[:, 1][data[0].nonZeroNeedsSchoolIndices] / data[0].gapParamSchool)).cuda()
+                # relMultiVisit = ((alphaRel_nonZero / (alphaRel_nonZero + betaRel_nonZero)) * (data[0].needsTensor[:, 2][data[0].nonZeroNeedsRelIndices] / data[0].gapParamRel)).cuda()
                 if data[0].isTrainedOnOneMonth == 1:
-                    pyro.sample("M_Shop", dist.Poisson(shopMultiVisit.mean()))
-                    pyro.sample("M_School", dist.Poisson(schoolMultiVisit.mean()))
-                    pyro.sample("M_Religion", dist.Poisson(relMultiVisit.mean()))
+                    pyro.sample("M_Shop", dist.Poisson(shopMultiVisit.mean() / data[0].gapParamShopFrac))
+                    pyro.sample("M_School", dist.Poisson(schoolMultiVisit.mean() / data[0].gapParamSchoolFrac))
+                    pyro.sample("M_Religion", dist.Poisson(relMultiVisit.mean() / data[0].gapParamRelFrac))
                 else:
-                    pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean(), data[0].multiVisitVarShParam))
-                    pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean(), data[0].multiVisitVarSchParam))
-                    pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean(), data[0].multiVisitVarRelParam))
-            with pyro.plate('observe_data'):
-                # shopVisitsObs = pyro.sample("S_Shop", dist.Poisson(sumValShop/data[0].gapParam), obs=trainShopObs)
-                # schoolVisitsObs = pyro.sample("S_School", dist.Poisson(sumValSchool/data[0].gapParam), obs=trainSchoolObs)
-                # religionVisitsObs = pyro.sample("S_Religion", dist.Poisson(sumValRel/data[0].gapParam), obs=trainRelObs)
-                for i in pyro.plate("visitObs_plate", len(data)):
-                    pyro.sample("S_Shop_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh)/data[0].gapParam))
-                    pyro.sample("S_School_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch)/data[0].gapParam))
-                    pyro.sample("S_Religion_{}".format(i), dist.Poisson(torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)/(torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1)+torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel)/data[0].gapParam))
-                # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramShop.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramShop.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSh) / data[0].gapParam,data[0].obsVarShParam),obs=trainShopObs)
-                # schoolVisitsObs = pyro.sample("S_School", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramSchool.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramSchool.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNSch) / data[0].gapParam,data[0].obsVarSchParam),obs=trainSchoolObs)
-                # religionVisitsObs = pyro.sample("S_Religion", dist.Normal(torch.sum((torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) / (torch.transpose(data[0].alpha_paramReligion.repeat([data[0].NCBG, 1]), 0, 1) + torch.transpose(data[0].beta_paramReligion.repeat([data[0].NCBG, 1]), 0, 1))) * data[0].BBNRel) / data[0].gapParam,data[0].obsVarRelParam), obs=trainRelObs)
+                    pyro.sample("M_Shop", dist.Normal(shopMultiVisit.mean() / data[0].gapParamShopFrac,data[0].multiVisitVarShParam))
+                    pyro.sample("M_School", dist.Normal(schoolMultiVisit.mean() / data[0].gapParamSchoolFrac,data[0].multiVisitVarSchParam))
+                    pyro.sample("M_Religion", dist.Normal(relMultiVisit.mean() / data[0].gapParamRelFrac,data[0].multiVisitVarRelParam))
+
 
         # def makeTestConfig(test):
         #    jsonStr = json.dumps(test.__dict__)
@@ -402,7 +418,7 @@ class Test():
         # exponentialLR_params = {"gamma ": 0.01}
         # optimizer = ExponentialLR(exponentialLR_params)
 
-        rprop_params = {"lr": lr, "step_sizes":(1e-03, 40), "maximize": False}
+        rprop_params = {"lr": lr, "step_sizes":(1e-06, 40), "maximize": False}
         # rprop_params = {"lr": lr, "maximize": False}
         optimizer = Rprop(rprop_params)
 
@@ -474,7 +490,7 @@ class Test():
                 allData.testData.monthlyData[i].globalError = np.zeros(numParticles, dtype=np.float32)
                 allData.testData.monthlyData[i].globalErrorFrac = np.zeros(numParticles, dtype=np.float32)
                 allMonths.append(allData.testData.monthlyData[i])
-            runCrossVal(svi, elbo, model, guide, allMonths, numParticles, dates, cities[selectedTestCityIndex])
+            runCrossVal(svi, elbo, model, guide, allMonths, numParticles, dates, cities[selectedTestCityIndex],"M1")
         else:
             if len(allData.trainData.monthlyData)==1:
                 allData.trainData.monthlyData[0].isTrainedOnOneMonth=1
@@ -590,7 +606,7 @@ if __name__ ==  '__main__':
     for i in range(numTests):
         test = Test()
         tests.append(test)
-        p = multiprocessing.Process(target=test.run,args=(3, 0.001, "RenyiELBO", 0.5,i,retVals))
+        p = multiprocessing.Process(target=test.run,args=(5, 0.7, "RenyiELBO", 0.5,i,retVals))
         p.start()
         processes.append(p)
 
