@@ -191,6 +191,11 @@ class Test():
             # gc.collect()
             # torch.cuda.empty_cache()
 
+            if data[0].isFirst == True:
+                np.savetxt('CBGShopVisitsM2.csv', shopVisits.sum(1).cpu().numpy(), delimiter=',')
+                np.savetxt('CBGSchoolVisitsM2.csv', schoolVisits.sum(1).cpu().numpy(), delimiter=',')
+                np.savetxt('CBGRelVisitsM2.csv', religionVisits.sum(1).cpu().numpy(), delimiter=',')
+
             with pyro.plate('observe_data'):
                 # shopVisitsObs = pyro.sample("S_Shop", dist.Normal(newSumShop / data[0].gapParam,data[0].obsVarShParam).to_event(1), obs=data[0].pOIShops)
                 # schoolVisitsObs = pyro.sample("S_School", dist.Normal(newSumSchool / data[0].gapParam,data[0].obsVarSchParam).to_event(1), obs=data[0].pOISchools)
