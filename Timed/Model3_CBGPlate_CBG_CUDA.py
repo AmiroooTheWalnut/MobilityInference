@@ -167,9 +167,9 @@ class Test():
                                                   torch.div(diff, religionVisitsPOIs.size(dim=0))).cuda()
                             newSumRelFinal.append(newSumRel)
             if data[0].isFirst == True:
-                np.savetxt('CBGShopVisitsM3.csv', shopVisits.sum(1).cpu().numpy(), delimiter=',')
-                np.savetxt('CBGSchoolVisitsM3.csv', schoolVisits.sum(1).cpu().numpy(), delimiter=',')
-                np.savetxt('CBGRelVisitsM3.csv', religionVisits.sum(1).cpu().numpy(), delimiter=',')
+                np.savetxt('CBGShopVisitsM3.csv', shopVisits.cpu().numpy(), delimiter=',')
+                np.savetxt('CBGSchoolVisitsM3.csv', schoolVisits.cpu().numpy(), delimiter=',')
+                np.savetxt('CBGRelVisitsM3.csv', religionVisits.cpu().numpy(), delimiter=',')
 
             with pyro.plate('observe_data'):
                 shopVisitsObs = pyro.sample("S_Shop",dist.Poisson(torch.cat(newSumShopFinal) / data[0].gapParamShop).to_event(1),obs=torch.cat(obsPOIShops))

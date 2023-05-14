@@ -86,7 +86,7 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,trainCity
     loss = elbo.loss(model, guide, train)
     logging.info("first loss train {} = {}".format(trainCity,loss))
 
-    n_steps = 500
+    n_steps = 200
     error_tolerance = 1
 
     train[0].globalError = np.zeros(numParticles, dtype=np.float32)
