@@ -16,9 +16,9 @@ def validate(train,tests, elbo, model, guide, numParticles, city):
         tests[i].gapParamSchool = train.gapParamSchool
         tests[i].gapParamRel = train.gapParamRel
 
-        tests[i].gapParamShopFrac = train.gapParamShopFrac
-        tests[i].gapParamSchoolFrac = train.gapParamSchoolFrac
-        tests[i].gapParamRelFrac = train.gapParamRelFrac
+        # tests[i].gapParamShopFrac = train.gapParamShopFrac
+        # tests[i].gapParamSchoolFrac = train.gapParamSchoolFrac
+        # tests[i].gapParamRelFrac = train.gapParamRelFrac
         tests[i].multiVisitVarShParam = train.multiVisitVarShParam
         tests[i].multiVisitVarSchParam = train.multiVisitVarSchParam
         tests[i].multiVisitVarRelParam = train.multiVisitVarRelParam

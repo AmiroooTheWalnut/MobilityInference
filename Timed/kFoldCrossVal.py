@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 import os
 import pandas as pd
 import numpy as np
+import datetime
 
 class FoldOutput:
     def __init__(self,trainIndex,trainLoss,trainError,trainErrorFrac,testLosses,testErrors,testErrorsFrac,params):
@@ -34,13 +35,10 @@ class FoldOutput:
         self.gapParamSchool = params[7]
         self.gapParamRel = params[8]
 
-        self.gapParamShopFrac = params[9]
-        self.gapParamSchoolFrac = params[10]
-        self.gapParamRelFrac = params[11]
 
-        self.multiVisitVarShParam = params[12]
-        self.multiVisitVarSchParam = params[13]
-        self.multiVisitVarRelParam = params[14]
+        self.multiVisitVarShParam = params[9]
+        self.multiVisitVarSchParam = params[10]
+        self.multiVisitVarRelParam = params[11]
 
 
         # self.alpha_paramShop = alpha_paramShop
@@ -86,7 +84,7 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,trainCity
     loss = elbo.loss(model, guide, train)
     logging.info("first loss train {} = {}".format(trainCity,loss))
 
-    n_steps = 200
+    n_steps = 100
     error_tolerance = 1
 
     train[0].globalError = np.zeros(numParticles, dtype=np.float32)
@@ -95,6 +93,12 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,trainCity
     losses = []
     maxErrors = []
     maxErrorsFrac = []
+
+    now = datetime.datetime.now()
+    seed=now.year+now.month+now.day+now.hour+now.minute+now.second
+    print("seed: {}".format(seed))
+    pyro.set_rng_seed(seed)
+    pyro.clear_param_store()
 
     # do gradient steps
     for step in range(n_steps):
@@ -159,9 +163,9 @@ def runOneFold(svi,elbo,model,guide,train,trainIndex,tests,dataIndices,trainCity
     params.append(train[0].gapParamSchool)
     params.append(train[0].gapParamRel)
 
-    params.append(train[0].gapParamShopFrac)
-    params.append(train[0].gapParamSchoolFrac)
-    params.append(train[0].gapParamRelFrac)
+    # params.append(train[0].gapParamShopFrac)
+    # params.append(train[0].gapParamSchoolFrac)
+    # params.append(train[0].gapParamRelFrac)
 
     params.append(train[0].multiVisitVarShParam)
     params.append(train[0].multiVisitVarSchParam)
@@ -385,50 +389,6 @@ def saveKFoldCrossVal(allFolds,dates,cityName,extraMessage):
 
 
 
-        vals = np.zeros((len(allFolds), len(allFolds[0].gapParamShopFrac)))
-        for i in range(len(allFolds)):
-            rowGapParamShopFrac = []
-            rowGapParamShopFrac.append("GapParamShopFrac")
-            for j in range(len(allFolds[i].gapParamShopFrac)):
-                rowGapParamShopFrac.append(allFolds[i].gapParamShopFrac[j].item())
-                vals[i, j] = allFolds[i].gapParamShopFrac[j].item()
-            writer.writerow(rowGapParamShopFrac)
-        varVals = vals.std(axis=0)
-        varRow = []
-        varRow.append("STD GapParamShopFrac")
-        for j in range(len(allFolds[0].gapParamShopFrac)):
-            varRow.append(varVals[j])
-        writer.writerow(varRow)
-
-        vals = np.zeros((len(allFolds), len(allFolds[0].gapParamSchoolFrac)))
-        for i in range(len(allFolds)):
-            rowGapParamSchoolFrac = []
-            rowGapParamSchoolFrac.append("GapParamSchoolFrac")
-            for j in range(len(allFolds[i].gapParamSchoolFrac)):
-                rowGapParamSchoolFrac.append(allFolds[i].gapParamSchoolFrac[j].item())
-                vals[i, j] = allFolds[i].gapParamSchoolFrac[j].item()
-            writer.writerow(rowGapParamSchoolFrac)
-        varVals = vals.std(axis=0)
-        varRow = []
-        varRow.append("STD GapParamSchoolFrac")
-        for j in range(len(allFolds[0].gapParamSchoolFrac)):
-            varRow.append(varVals[j])
-        writer.writerow(varRow)
-
-        vals = np.zeros((len(allFolds), len(allFolds[0].gapParamRelFrac)))
-        for i in range(len(allFolds)):
-            rowGapParamRelFrac = []
-            rowGapParamRelFrac.append("GapParamRelFrac")
-            for j in range(len(allFolds[i].gapParamRelFrac)):
-                rowGapParamRelFrac.append(allFolds[i].gapParamRelFrac[j].item())
-                vals[i, j] = allFolds[i].gapParamRelFrac[j].item()
-            writer.writerow(rowGapParamRelFrac)
-        varVals = vals.std(axis=0)
-        varRow = []
-        varRow.append("STD GapParamRelFrac")
-        for j in range(len(allFolds[0].gapParamRelFrac)):
-            varRow.append(varVals[j])
-        writer.writerow(varRow)
 
 
 

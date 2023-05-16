@@ -6,7 +6,44 @@ import pandas as pd
 import numpy as np
 data = pd.read_csv('TabularData_Tucson.csv')
 data = data.to_numpy()
+dataNorm = data
+dataNorm[:,4:7] = dataNorm[:,4:7]/np.amax(data[:,4:7])
 
+# Test MVOBS accuracy
+for i in range(len(data)):
+    XTrain = np.copy(data)
+    XTrain = np.concatenate((XTrain[:,0].reshape((XTrain.shape[0],1)),XTrain[:, 4:7]),axis=1)
+    XTrain = np.delete(XTrain, i, 0)
+    YTrain = np.copy(data)
+    YTrain = YTrain[:, 1:4]
+    YTrain = np.delete(YTrain, i, 0)
+
+    XTest = np.concatenate((data[i,0].reshape(1,1),data[i, 4:7].reshape(1,3)),axis=1)
+    YTest = data[i, 1:4].reshape((1,3))
+
+    clf = tree.DecisionTreeRegressor()
+    clf = clf.fit(XTrain, YTrain)
+    pred = clf.predict(XTest)
+    error = (abs(pred[0, 0] - YTest[0, 0]) / YTest[0, 0]) + (abs(pred[0, 1] - YTest[0, 1]) / YTest[0, 1]) + (abs(pred[0, 2] - YTest[0, 2]) / YTest[0, 2])
+    print("error MVOBS tree: {}".format(error))
+
+for i in range(len(data)):
+    XTrain = np.copy(dataNorm)
+    XTrain = np.concatenate((XTrain[:, 0].reshape((XTrain.shape[0], 1)), XTrain[:, 4:7]), axis=1)
+    XTrain = np.delete(XTrain, i, 0)
+    YTrain = np.copy(dataNorm)
+    YTrain = YTrain[:, 1:4]
+    YTrain = np.delete(YTrain, i, 0)
+
+    XTest = np.concatenate((dataNorm[i, 0].reshape(1, 1), dataNorm[i, 4:7].reshape(1, 3)), axis=1)
+    YTest = dataNorm[i, 1:4].reshape((1, 3))
+
+    regr = MLPRegressor(random_state=1, max_iter=50000).fit(XTrain, YTrain)
+    pred = regr.predict(XTest)
+    error = (abs(pred[0, 0] - YTest[0, 0]) / YTest[0, 0]) + (abs(pred[0, 1] - YTest[0, 1]) / YTest[0, 1]) + (abs(pred[0, 2] - YTest[0, 2]) / YTest[0, 2])
+    print("error MVOBS MLP: {}".format(error))
+
+# Test VOBS accuracy
 for i in range(len(data)):
     XTrain = np.copy(data)
     XTrain = XTrain[:, 0:4]
@@ -22,21 +59,21 @@ for i in range(len(data)):
     clf = clf.fit(XTrain, YTrain)
     pred = clf.predict(XTest)
     error = (abs(pred[0, 0] - YTest[0, 0]) / YTest[0, 0]) + (abs(pred[0, 1] - YTest[0, 1]) / YTest[0, 1]) + (abs(pred[0, 2] - YTest[0, 2]) / YTest[0, 2])
-    print("error tree: {}".format(error))
+    print("error VOBS tree: {}".format(error))
 
 for i in range(len(data)):
-    XTrain = np.copy(data)
+    XTrain = np.copy(dataNorm)
     XTrain = XTrain[:, 0:4]
     XTrain = np.delete(XTrain, i, 0)
-    YTrain = np.copy(data)
+    YTrain = np.copy(dataNorm)
     YTrain = YTrain[:, 4:7]
     YTrain = np.delete(YTrain, i, 0)
 
-    XTest = data[i, 0:4].reshape((1,4))
-    YTest = data[i, 4:7].reshape((1,3))
+    XTest = dataNorm[i, 0:4].reshape((1,4))
+    YTest = dataNorm[i, 4:7].reshape((1,3))
 
     regr = MLPRegressor(random_state=1, max_iter=50000).fit(XTrain, YTrain)
     pred = regr.predict(XTest)
     error = (abs(pred[0, 0] - YTest[0, 0]) / YTest[0, 0]) + (abs(pred[0, 1] - YTest[0, 1]) / YTest[0, 1]) + (abs(pred[0, 2] - YTest[0, 2]) / YTest[0, 2])
-    print("error MLP: {}".format(error))
+    print("error VOBS MLP: {}".format(error))
 

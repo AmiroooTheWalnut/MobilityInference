@@ -133,6 +133,8 @@ class MonthData:
     def __init__(self, data):
         self.isTrainedOnOneMonth = 0
 
+        self.cityName = data[16]
+
         self.pOIs = torch.tensor(data[0].values)
         self.needs = data[1]
 
@@ -248,6 +250,12 @@ class MonthData:
         self.gap_param_down = torch.ones(1)
         self.gapVal = torch.tensor(1)
         self.gapParam = torch.ones(1)
+        self.gapParamShop = torch.ones(1)
+        self.gapParamSchool = torch.ones(1)
+        self.gapParamRel = torch.ones(1)
+        # self.gapParamShopFrac  = torch.ones(1)
+        # self.gapParamSchoolFrac = torch.ones(1)
+        # self.gapParamRelFrac = torch.ones(1)
 
         # DEBUG
         self.expectationDebugCounter = 0
@@ -303,7 +311,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
 
         fracs = [shopFrac,schoolFrac,religionFrac]
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb, cityTrain]
 
         monthData = MonthData(data)
         trainBundle.monthlyData.append(monthData)
@@ -344,7 +352,7 @@ def loadData(cityTrain, cityTest, dates, monthsTrain, monthsTest, modelTypeIndex
 
         fracs = [shopFrac, schoolFrac, religionFrac]
 
-        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb]
+        data = [visits, needs, population, isFirst, pOIShops, pOISchools, pOIReligion, pOIShopsProb, pOISchoolsProb, pOIReligionProb, populationCBG, modelTypeIndex, fracs, cBGShopProb, cBGSchoolProb, cBGReligionProb, cityTrain]
         monthData = MonthData(data)
         testBundle.monthlyData.append(monthData)
 
